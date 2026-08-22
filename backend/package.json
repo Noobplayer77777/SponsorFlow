@@ -1,31 +1,30 @@
 {
-    "name":  "backend",
-    "version":  "1.0.0",
-    "description":  "",
-    "main":  "index.js",
-    "scripts":  {
-                    "build":  "tsc",
-                    "dev":  "nodemon src/server.ts",
-                    "start":  "node dist/server.js"
-                },
-    "keywords":  [
-
-                 ],
-    "author":  "",
-    "license":  "ISC",
-    "type":  "commonjs",
-    "dependencies":  {
-                         "cors":  "^2.8.6",
-                         "dotenv":  "^17.4.2",
-                         "express":  "^5.2.1",
-                         "@prisma/client":  "^5.10.2"
-                     },
-    "devDependencies":  {
-                            "@types/cors":  "^2.8.19",
-                            "@types/express":  "^5.0.6",
-                            "@types/node":  "^26.2.0",
-                            "nodemon":  "^3.1.14",
-                            "ts-node":  "^10.9.2",
-                            "typescript":  "^7.0.2"
-                        }
+    "name": "backend",
+    "version": "1.0.0",
+    "description": "",
+    "main": "index.js",
+    "scripts": {
+        "build": "tsc",
+        "dev": "tsx watch src/server.ts",
+        "start": "node dist/server.js"
+    },
+    "keywords": [],
+    "author": "",
+    "license": "ISC",
+    "type": "commonjs",
+    "dependencies": {
+        "@prisma/client": "5.10.2",
+        "cors": "^2.8.6",
+        "dotenv": "^17.4.2",
+        "express": "^5.2.1"
+    },
+    "devDependencies": {
+        "@types/cors": "^2.8.19",
+        "@types/express": "^5.0.6",
+        "@types/node": "^26.2.0",
+        "nodemon": "^3.1.14",
+        "ts-node": "^10.9.2",
+        "tsx": "^4.23.12",
+        "typescript": "^7.0.2"
+    }
 }
