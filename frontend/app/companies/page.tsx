@@ -119,6 +119,8 @@ export default function CompaniesPage() {
               <th className="p-4 font-semibold text-gray-600">Company Name</th>
               <th className="p-4 font-semibold text-gray-600">Contact Person</th>
               <th className="p-4 font-semibold text-gray-600">Email</th>
+              <th className="p-4 font-semibold text-gray-600">Assigned To</th>
+              <th className="p-4 font-semibold text-gray-600">Lock Status</th>
               <th className="p-4 font-semibold text-gray-600">Status</th>
               <th className="p-4 font-semibold text-gray-600 text-right">Actions</th>
             </tr>
@@ -129,13 +131,23 @@ export default function CompaniesPage() {
                 <td className="p-4">{c.companyName}</td>
                 <td className="p-4">{c.contactPerson || '-'}</td>
                 <td className="p-4">{c.email || '-'}</td>
+                <td className="p-4 text-sm text-gray-700">
+                  {c.assignment?.user?.name || <span className="text-gray-400 italic">Unassigned</span>}
+                </td>
+                <td className="p-4 text-sm text-gray-700">
+                  {c.lockedById ? (
+                    <span className="text-orange-600 font-medium">Locked for drafting</span>
+                  ) : (
+                    <span className="text-green-600">Unlocked</span>
+                  )}
+                </td>
                 <td className="p-4">
                   <span className="bg-blue-100 text-blue-800 text-xs px-2 py-1 rounded-full font-medium">
                     {c.status}
                   </span>
                 </td>
                 <td className="p-4 text-right flex justify-end gap-3">
-                  <Link href={`/companies/${c.id}`} className="text-blue-600 hover:underline">Edit</Link>
+                  <Link href={`/companies/${c.id}`} className="text-blue-600 hover:underline">View/Edit</Link>
                   {user?.role === 'ADMIN' && (
                     <button onClick={() => handleDelete(c.id)} className="text-red-600 hover:underline">Delete</button>
                   )}

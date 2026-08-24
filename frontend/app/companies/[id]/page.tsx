@@ -57,13 +57,42 @@ export default function EditCompanyPage() {
     }
   };
 
+  const handleLock = async () => {
+    try {
+      await api.post(`/companies/${params.id}/lock`, {});
+      alert('Lock acquired! You can now compose the first email (5 min limit).');
+      // In future: Redirect to composer
+    } catch (error: any) {
+      alert(error.message || 'Failed to acquire lock');
+    }
+  };
+
+  const handleUnlock = async () => {
+    try {
+      await api.post(`/companies/${params.id}/unlock`, {});
+      alert('Lock released.');
+    } catch (error: any) {
+      alert('Failed to release lock');
+    }
+  };
+
   if (loading) return <div className="p-8 text-center">Loading...</div>;
 
   return (
     <div className="p-8 max-w-2xl mx-auto">
-      <div className="flex items-center gap-4 mb-6">
-        <Link href="/companies" className="text-gray-500 hover:text-gray-900">← Back</Link>
-        <h1 className="text-2xl font-bold">Edit Company</h1>
+      <div className="flex items-center gap-4 mb-6 justify-between">
+        <div className="flex items-center gap-4">
+          <Link href="/companies" className="text-gray-500 hover:text-gray-900">← Back</Link>
+          <h1 className="text-2xl font-bold">Company Details & Edit</h1>
+        </div>
+        <div className="flex gap-2">
+           <button onClick={handleLock} className="bg-orange-500 text-white px-3 py-1 rounded shadow hover:bg-orange-600 text-sm">
+             Draft Email (Lock)
+           </button>
+           <button onClick={handleUnlock} className="bg-gray-200 text-gray-800 px-3 py-1 rounded shadow hover:bg-gray-300 text-sm">
+             Release Lock
+           </button>
+        </div>
       </div>
 
       <form onSubmit={handleSubmit} className="bg-white p-6 rounded-lg shadow space-y-4">

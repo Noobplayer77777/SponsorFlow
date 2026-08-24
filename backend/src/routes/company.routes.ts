@@ -33,4 +33,12 @@ router.delete('/:id', requireRole('ADMIN'), deleteCompany);
 // ONLY ADMIN CAN IMPORT
 router.post('/import', requireRole('ADMIN'), upload.single('file'), importCompanies);
 
+import { lockCompany, unlockCompany } from '../controllers/assignment.controller';
+
+// @route POST /api/companies/:id/lock
+router.post('/:id/lock', lockCompany);
+
+// @route POST /api/companies/:id/unlock
+router.post('/:id/unlock', unlockCompany);
+
 export default router;
