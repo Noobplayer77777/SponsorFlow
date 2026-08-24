@@ -1,6 +1,7 @@
 import { Request, Response } from 'express';
 import { generateGmailAuthUrl, handleGmailCallback, sendGmail } from '../services/gmail.service';
 import prisma from '../utils/prisma';
+import { storageService } from '../services/storage.service';
 
 // @desc    Get current Gmail connection status
 // @route   GET /api/gmail/status
@@ -46,11 +47,14 @@ export const gmailCallback = async (req: Request, res: Response): Promise<void> 
   }
 };
 
-// @desc    Send an email via connected Gmail account
+// @desc    Send an email via connected Gmail account (with optional attachments)
 // @route   POST /api/gmail/send
 export const sendTestEmail = async (req: Request, res: Response): Promise<void> => {
   try {
     const { companyId, subject, body } = req.body;
+    
+    // req.files comes from multer
+    const files = req.files as Express.Multer.File[];
     
     if (!companyId || !subject || !body) {
       res.status(400).json({ success: false, message: 'Missing required fields' });
@@ -98,10 +102,34 @@ export const sendTestEmail = async (req: Request, res: Response): Promise<void> 
       }
     }
 
-    // 3. Send Email via Gmail API
-    await sendGmail(req.user!.id, company.email, subject, body);
+    // 3. Process Attachments
+    const processedAttachments = [];
+    const dbAttachments: { url: string, filename: string, key: string }[] = [];
+    if (files && files.length > 0) {
+      for (const file of files) {
+        // Upload to storage abstraction (saves file and returns path info)
+        const storageInfo = await storageService.uploadFile(file);
+        
+        // Pass buffer and mime directly to Gmail service for immediate sending
+        processedAttachments.push({
+          filename: file.originalname,
+          content: file.buffer,
+          mimeType: file.mimetype
+        });
 
-    // 4. Record the interaction
+        // Track in DB
+        dbAttachments.push({
+          url: storageInfo.url,
+          filename: storageInfo.filename,
+          key: storageInfo.key
+        });
+      }
+    }
+
+    // 4. Send Email via Gmail API
+    await sendGmail(req.user!.id, company.email, subject, body, processedAttachments);
+
+    // 5. Record the interaction
     await prisma.$transaction(async (tx) => {
       // Create email record
       await tx.email.create({
@@ -112,7 +140,8 @@ export const sendTestEmail = async (req: Request, res: Response): Promise<void> 
           status: 'SENT',
           sentAt: new Date(),
           companyId,
-          senderId: req.user!.id
+          senderId: req.user!.id,
+          attachments: dbAttachments.length > 0 ? dbAttachments : undefined
         }
       });
 

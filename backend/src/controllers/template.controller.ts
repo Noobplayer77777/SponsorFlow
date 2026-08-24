@@ -1,84 +1,76 @@
 import { Request, Response } from 'express';
 import prisma from '../utils/prisma';
 
-// @desc    Get all email templates
-// @route   GET /api/templates
-// @access  Private
 export const getTemplates = async (req: Request, res: Response): Promise<void> => {
   try {
     const templates = await prisma.emailTemplate.findMany({
-      orderBy: { createdAt: 'desc' },
+      orderBy: { createdAt: 'desc' }
     });
     res.json({ success: true, data: templates });
   } catch (error) {
-    console.error('Error fetching templates:', error);
-    res.status(500).json({ success: false, message: 'Server Error' });
+    res.status(500).json({ success: false, message: 'Server error' });
   }
 };
 
-// @desc    Get a single template
-// @route   GET /api/templates/:id
-// @access  Private
-export const getTemplateById = async (req: Request, res: Response): Promise<void> => {
+export const getTemplate = async (req: Request, res: Response): Promise<void> => {
   try {
     const template = await prisma.emailTemplate.findUnique({
-      where: { id: req.params.id as string },
+      where: { id: req.params.id as string }
     });
-
     if (!template) {
       res.status(404).json({ success: false, message: 'Template not found' });
       return;
     }
-
     res.json({ success: true, data: template });
   } catch (error) {
-    console.error('Error fetching template:', error);
-    res.status(500).json({ success: false, message: 'Server Error' });
+    res.status(500).json({ success: false, message: 'Server error' });
   }
 };
 
-// @desc    Create a new email template
-// @route   POST /api/templates
-// @access  Private
 export const createTemplate = async (req: Request, res: Response): Promise<void> => {
   try {
+    const { name, subject, body } = req.body;
+    
+    if (!name || !subject || !body) {
+      res.status(400).json({ success: false, message: 'Missing required fields' });
+      return;
+    }
+
     const template = await prisma.emailTemplate.create({
-      data: req.body,
+      data: {
+        name,
+        subject,
+        body,
+        createdBy: req.user!.id
+      }
     });
     res.status(201).json({ success: true, data: template });
   } catch (error) {
-    console.error('Error creating template:', error);
-    res.status(500).json({ success: false, message: 'Server Error' });
+    res.status(500).json({ success: false, message: 'Server error' });
   }
 };
 
-// @desc    Update a template
-// @route   PATCH /api/templates/:id
-// @access  Private
 export const updateTemplate = async (req: Request, res: Response): Promise<void> => {
   try {
+    const { name, subject, body } = req.body;
+    
     const template = await prisma.emailTemplate.update({
       where: { id: req.params.id as string },
-      data: req.body,
+      data: { name, subject, body }
     });
     res.json({ success: true, data: template });
   } catch (error) {
-    console.error('Error updating template:', error);
-    res.status(500).json({ success: false, message: 'Server Error' });
+    res.status(500).json({ success: false, message: 'Server error' });
   }
 };
 
-// @desc    Delete a template
-// @route   DELETE /api/templates/:id
-// @access  Private
 export const deleteTemplate = async (req: Request, res: Response): Promise<void> => {
   try {
     await prisma.emailTemplate.delete({
-      where: { id: req.params.id as string },
+      where: { id: req.params.id as string }
     });
-    res.json({ success: true, message: 'Template deleted successfully' });
+    res.json({ success: true, message: 'Template deleted' });
   } catch (error) {
-    console.error('Error deleting template:', error);
-    res.status(500).json({ success: false, message: 'Server Error' });
+    res.status(500).json({ success: false, message: 'Server error' });
   }
 };

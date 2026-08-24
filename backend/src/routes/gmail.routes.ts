@@ -7,7 +7,10 @@ import {
 } from '../controllers/gmail.controller';
 import { requireAuth } from '../middleware/auth.middleware';
 
+import multer from 'multer';
+
 const router = Router();
+const upload = multer({ storage: multer.memoryStorage() });
 
 // All Gmail routes require authentication (must be logged in to SponsorFlow first)
 router.use(requireAuth);
@@ -22,6 +25,6 @@ router.get('/auth', getGmailAuthUrl);
 router.post('/callback', gmailCallback);
 
 // @route POST /api/gmail/send
-router.post('/send', sendTestEmail);
+router.post('/send', upload.array('attachments'), sendTestEmail);
 
 export default router;

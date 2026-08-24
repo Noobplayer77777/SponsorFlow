@@ -1,4 +1,5 @@
 import { google } from 'googleapis';
+import crypto from 'crypto';
 import prisma from '../utils/prisma';
 
 // Use standard OAuth callback for backend Gmail integration
@@ -105,30 +106,50 @@ const getAuthenticatedGmailClient = async (userId: string) => {
   return google.gmail({ version: 'v1', auth: oauth2Client });
 };
 
-// Build RFC 2822 compliant email
-const createBase64Email = (to: string, subject: string, body: string) => {
+// Build RFC 2822 compliant email with optional attachments
+const createMimeEmail = (to: string, subject: string, body: string, attachments?: { filename: string, content: Buffer, mimeType: string }[]) => {
   const utf8Subject = `=?utf-8?B?${Buffer.from(subject).toString('base64')}?=`;
-  const messageParts = [
-    `To: ${to}`,
-    'Content-Type: text/html; charset=utf-8',
-    'MIME-Version: 1.0',
-    `Subject: ${utf8Subject}`,
-    '',
-    body,
-  ];
+  const boundary = `----=_Part_${crypto.randomBytes(16).toString('hex')}`;
   
-  const message = messageParts.join('\n');
-  return Buffer.from(message)
+  let raw = `To: ${to}\r\n`;
+  raw += `Subject: ${utf8Subject}\r\n`;
+  raw += `MIME-Version: 1.0\r\n`;
+  
+  if (attachments && attachments.length > 0) {
+    raw += `Content-Type: multipart/mixed; boundary="${boundary}"\r\n\r\n`;
+    raw += `--${boundary}\r\n`;
+    raw += `Content-Type: text/html; charset="UTF-8"\r\n\r\n`;
+    raw += `${body}\r\n\r\n`;
+    
+    for (const att of attachments) {
+      raw += `--${boundary}\r\n`;
+      raw += `Content-Type: ${att.mimeType}; name="${att.filename}"\r\n`;
+      raw += `Content-Disposition: attachment; filename="${att.filename}"\r\n`;
+      raw += `Content-Transfer-Encoding: base64\r\n\r\n`;
+      raw += `${att.content.toString('base64')}\r\n\r\n`;
+    }
+    raw += `--${boundary}--`;
+  } else {
+    raw += `Content-Type: text/html; charset="UTF-8"\r\n\r\n`;
+    raw += `${body}`;
+  }
+  
+  return Buffer.from(raw)
     .toString('base64')
     .replace(/\+/g, '-')
     .replace(/\//g, '_')
     .replace(/=+$/, '');
 };
 
-export const sendGmail = async (userId: string, to: string, subject: string, body: string) => {
+export const sendGmail = async (
+  userId: string, 
+  to: string, 
+  subject: string, 
+  body: string,
+  attachments?: { filename: string, content: Buffer, mimeType: string }[]
+) => {
   const gmail = await getAuthenticatedGmailClient(userId);
-  
-  const rawMessage = createBase64Email(to, subject, body);
+  const rawMessage = createMimeEmail(to, subject, body, attachments);
 
   try {
     const res = await gmail.users.messages.send({

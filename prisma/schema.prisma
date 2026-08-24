@@ -116,5 +116,6 @@ model Email {
   sender   User   @relation(fields: [senderId], references: [id])
 
   sentAt    DateTime?
+  attachments Json?   // Array of attachment metadata (url, filename)
   createdAt DateTime  @default(now())
 }

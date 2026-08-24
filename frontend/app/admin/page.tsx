@@ -68,6 +68,10 @@ export default function AdminDashboard() {
           <h3 className="text-xl font-bold mb-2">Manage Companies</h3>
           <p className="text-gray-600">Add, edit, assign, and import companies.</p>
         </Link>
+        <Link href="/admin/templates" className="bg-white p-6 rounded-lg shadow hover:shadow-md transition block">
+          <h3 className="text-xl font-bold mb-2">Email Templates</h3>
+          <p className="text-gray-600">Create and edit dynamic outreach templates.</p>
+        </Link>
       </div>
     </div>
   );
