@@ -61,12 +61,12 @@ export const unassignCompany = async (req: Request, res: Response): Promise<void
     await prisma.$transaction(async (tx) => {
       // 1. Delete the assignment
       await tx.assignment.delete({
-        where: { companyId },
+        where: { companyId: req.params.companyId as string },
       });
 
       // 2. Reset the company status back to NOT_ASSIGNED
       await tx.company.update({
-        where: { id: companyId },
+        where: { id: req.params.companyId as string },
         data: { status: 'NOT_ASSIGNED' },
       });
     });
