@@ -6,33 +6,20 @@ import { useRouter, useParams } from 'next/navigation';
 import Link from 'next/link';
 import { useAuth } from '../../../contexts/AuthContext';
 
-export default function EditCompanyPage() {
+export default function CompanyProfilePage() {
   const params = useParams();
   const router = useRouter();
   const { user } = useAuth();
   const [loading, setLoading] = useState(true);
   const [templates, setTemplates] = useState<any[]>([]);
   
-  const [formData, setFormData] = useState({
-    companyName: '',
-    contactPerson: '',
-    email: '',
-    website: '',
-    industry: '',
-    location: '',
-    status: '',
-    lockedById: '',
-    lockedAt: '',
-  });
+  const [company, setCompany] = useState<any>({});
   
-  const [composer, setComposer] = useState({
-    subject: '',
-    body: ''
-  });
-  
+  const [composer, setComposer] = useState({ subject: '', body: '' });
   const [attachments, setAttachments] = useState<FileList | null>(null);
   const [sending, setSending] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const [previewMode, setPreviewMode] = useState(false);
 
   useEffect(() => {
     const fetchCompanyAndTemplates = async () => {
@@ -41,20 +28,7 @@ export default function EditCompanyPage() {
           api.get(`/companies/${params.id}`),
           api.get(`/templates`)
         ]);
-
-        const data = companyRes.data;
-        setFormData({
-          companyName: data.companyName || '',
-          contactPerson: data.contactPerson || '',
-          email: data.email || '',
-          website: data.website || '',
-          industry: data.industry || '',
-          location: data.location || '',
-          status: data.status || 'NOT_ASSIGNED',
-          lockedById: data.lockedById || '',
-          lockedAt: data.lockedAt || '',
-        });
-
+        setCompany(companyRes.data);
         setTemplates(templatesRes.data || []);
       } catch (error) {
         alert('Failed to load data');
@@ -68,35 +42,23 @@ export default function EditCompanyPage() {
 
   const replacePlaceholders = (text: string) => {
     return text
-      .replace(/{{company}}/g, formData.companyName || 'Company')
-      .replace(/{{contact}}/g, formData.contactPerson || 'there')
+      .replace(/{{company}}/g, company.companyName || 'Company')
+      .replace(/{{contact}}/g, company.contactPerson || 'there')
       .replace(/{{event}}/g, 'our upcoming event')
       .replace(/{{member}}/g, user?.name || 'Sponsorship Team')
       .replace(/{{club}}/g, 'Hack Club')
-      .replace(/{{website}}/g, formData.website || '');
+      .replace(/{{website}}/g, company.website || '');
   };
 
   const handleTemplateSelect = (e: React.ChangeEvent<HTMLSelectElement>) => {
     const templateId = e.target.value;
     if (!templateId) return;
-    
     const template = templates.find(t => t.id === templateId);
     if (template) {
       setComposer({
         subject: replacePlaceholders(template.subject),
         body: replacePlaceholders(template.body)
       });
-    }
-  };
-
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
-    try {
-      await api.put(`/companies/${params.id}`, formData);
-      alert('Company updated successfully');
-      router.push('/companies');
-    } catch (error: any) {
-      alert('Failed to update company: ' + (error.message || 'Validation error'));
     }
   };
 
@@ -126,7 +88,6 @@ export default function EditCompanyPage() {
     
     setSending(true);
     try {
-      // Use FormData since we might have files
       const payload = new FormData();
       payload.append('companyId', params.id as string);
       payload.append('subject', composer.subject);
@@ -159,163 +120,227 @@ export default function EditCompanyPage() {
     }
   };
 
-  const [previewMode, setPreviewMode] = useState(false);
+  if (loading) return <div className="p-8 text-center text-gray-500">Loading Profile...</div>;
 
-  if (loading) return <div className="p-8 text-center">Loading...</div>;
-
-  const showComposer = (formData.lockedById === user?.id && formData.status === 'NOT_ASSIGNED') || formData.status === 'ASSIGNED';
+  const showComposer = (company.lockedById === user?.id && company.status === 'NOT_ASSIGNED') || company.status === 'ASSIGNED';
 
   return (
-    <div className="p-8 max-w-5xl mx-auto flex gap-8 items-start">
+    <div className="p-8 max-w-7xl mx-auto flex gap-6 bg-gray-50 min-h-screen">
       
-      {/* LEFT COL: COMPANY FORM */}
-      <div className="flex-1 max-w-sm">
-        <div className="flex items-center gap-4 mb-6 justify-between">
-          <div className="flex items-center gap-4">
-            <Link href="/companies" className="text-gray-500 hover:text-gray-900">← Back</Link>
-            <h1 className="text-2xl font-bold">Company Details</h1>
+      {/* LEFT COL: PROFILE DATA */}
+      <div className="w-[400px] space-y-6">
+        
+        {/* Header / Identity */}
+        <div className="bg-white p-6 rounded-xl shadow-sm border border-gray-100">
+          <div className="flex items-center gap-4 mb-4">
+            <Link href={user?.role === 'ADMIN' ? '/companies' : '/member'} className="text-gray-400 hover:text-gray-900">← Back</Link>
+          </div>
+          <h1 className="text-2xl font-bold text-gray-900 mb-1">{company.companyName}</h1>
+          <p className="text-sm text-gray-500 mb-4">{company.industry || 'Unknown Industry'} • {company.location || 'Unknown Location'}</p>
+          
+          <div className="flex flex-wrap gap-2 mb-4">
+            <span className="bg-blue-100 text-blue-800 px-3 py-1 rounded-full text-xs font-bold uppercase tracking-wide">
+              {company.status.replace('_', ' ')}
+            </span>
+          </div>
+
+          <div className="text-sm space-y-3 text-gray-700">
+            <div className="flex items-center gap-2">
+              <span className="font-semibold text-gray-900 w-24">Contact:</span> 
+              <span>{company.contactPerson || '-'} ({company.designation || '-'})</span>
+            </div>
+            <div className="flex items-center gap-2">
+              <span className="font-semibold text-gray-900 w-24">Email:</span> 
+              <span className="text-blue-600 truncate">{company.email || '-'}</span>
+            </div>
+            <div className="flex items-center gap-2">
+              <span className="font-semibold text-gray-900 w-24">Phone:</span> 
+              <span>{company.phoneNumber || '-'}</span>
+            </div>
+            <div className="flex items-center gap-2">
+              <span className="font-semibold text-gray-900 w-24">Website:</span> 
+              {company.website ? <a href={company.website} target="_blank" className="text-blue-600 hover:underline">Link</a> : '-'}
+            </div>
+            <div className="flex items-center gap-2">
+              <span className="font-semibold text-gray-900 w-24">LinkedIn:</span> 
+              {company.linkedin ? <a href={company.linkedin} target="_blank" className="text-blue-600 hover:underline">Link</a> : '-'}
+            </div>
           </div>
         </div>
 
-        <form onSubmit={handleSubmit} className="bg-white p-6 rounded-lg shadow space-y-4 mb-8">
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">Company Name *</label>
-            <input required type="text" className="w-full border p-2 rounded" 
-              value={formData.companyName} onChange={e => setFormData({...formData, companyName: e.target.value})} />
+        {/* Assignments & Logistics */}
+        <div className="bg-white p-6 rounded-xl shadow-sm border border-gray-100">
+          <h3 className="font-bold text-gray-900 mb-4 text-lg">Logistics</h3>
+          <div className="text-sm space-y-3">
+            <div className="flex items-center justify-between">
+              <span className="text-gray-500">Assigned Member</span>
+              <span className="font-medium text-gray-900">{company.assignment?.user?.name || 'Unassigned'}</span>
+            </div>
+            <div className="flex items-center justify-between">
+              <span className="text-gray-500">Follow-up Due</span>
+              <span className="font-medium text-red-600">{company.followUpDate ? new Date(company.followUpDate).toLocaleDateString() : 'Not Set'}</span>
+            </div>
+            <div className="flex items-center justify-between">
+              <span className="text-gray-500">Last Activity</span>
+              <span className="font-medium text-gray-900">{new Date(company.updatedAt).toLocaleDateString()}</span>
+            </div>
           </div>
-          
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">Contact Person</label>
-            <input type="text" className="w-full border p-2 rounded" 
-              value={formData.contactPerson} onChange={e => setFormData({...formData, contactPerson: e.target.value})} />
-          </div>
+        </div>
 
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">Email</label>
-            <input type="email" className="w-full border p-2 rounded" 
-              value={formData.email} onChange={e => setFormData({...formData, email: e.target.value})} />
+        {/* Attachments Placeholder */}
+        <div className="bg-white p-6 rounded-xl shadow-sm border border-gray-100 opacity-60">
+          <h3 className="font-bold text-gray-900 mb-2 text-lg">Attachments</h3>
+          <p className="text-xs text-gray-500 mb-3">Stored sponsorship documents and assets</p>
+          <div className="text-sm bg-gray-50 p-3 rounded border border-dashed border-gray-300 text-center text-gray-400">
+            No attachments yet
           </div>
+        </div>
 
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">Status</label>
-            <select className="w-full border p-2 rounded"
-              value={formData.status} onChange={e => setFormData({...formData, status: e.target.value})}>
-              <option value="NOT_ASSIGNED">Not Assigned</option>
-              <option value="ASSIGNED">Assigned</option>
-              <option value="EMAIL_SENT">Email Sent</option>
-              <option value="REPLIED">Replied</option>
-              <option value="INTERESTED">Interested</option>
-              <option value="REJECTED">Rejected</option>
-            </select>
-          </div>
-
-          <button type="submit" className="w-full bg-blue-600 text-white p-2 rounded font-medium hover:bg-blue-700">
-            Save Changes
-          </button>
-        </form>
       </div>
 
-      {/* RIGHT COL: COMPOSER */}
-      <div className="flex-1 min-w-[500px]">
-        {/* Lock Controls */}
-        <div className="bg-white p-4 rounded-lg shadow mb-4 border flex justify-between items-center">
-          <div>
-            <h3 className="font-bold text-gray-800">Email Outreach</h3>
-            <p className="text-xs text-gray-500">
-              {formData.status === 'EMAIL_SENT' ? 'Already contacted' : (formData.lockedById ? 'Currently Locked' : 'Unlocked')}
-            </p>
-          </div>
-          {formData.status === 'NOT_ASSIGNED' && formData.lockedById !== user?.id && (
-            <button type="button" onClick={handleLock} className="bg-orange-500 text-white px-3 py-1 rounded shadow hover:bg-orange-600 text-sm">
-              Draft Email (Lock)
-            </button>
-          )}
-          {formData.lockedById === user?.id && (
-            <button type="button" onClick={handleUnlock} className="bg-gray-200 text-gray-800 px-3 py-1 rounded shadow hover:bg-gray-300 text-sm">
-              Release Lock
-            </button>
-          )}
-        </div>
-
-        {/* Composer Form */}
-        {showComposer && (
-          <div className="bg-white p-6 rounded-lg shadow space-y-4 border-2 border-blue-200">
-            <div className="flex justify-between items-center mb-2">
-              <h2 className="text-xl font-bold text-blue-900">Email Composer</h2>
-              <button 
-                type="button"
-                onClick={() => setPreviewMode(!previewMode)}
-                className="text-sm bg-gray-100 px-3 py-1 rounded border hover:bg-gray-200"
-              >
-                {previewMode ? 'Edit Mode' : 'Preview Mode'}
-              </button>
+      {/* RIGHT COL: WORKSPACE */}
+      <div className="flex-1 space-y-6">
+        
+        {/* Composer / Outreach Panel */}
+        <div className="bg-white p-6 rounded-xl shadow-sm border border-gray-100">
+          <div className="flex justify-between items-center mb-6 border-b pb-4">
+            <div>
+              <h2 className="text-xl font-bold text-gray-900">Email Outreach</h2>
+              <p className="text-xs text-gray-500 mt-1">
+                {company.status === 'EMAIL_SENT' ? 'Already contacted' : (company.lockedById ? 'Currently Locked' : 'Unlocked')}
+              </p>
             </div>
-            
-            <form onSubmit={handleSendEmail} className="space-y-4">
-              {!previewMode && (
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">Load Template</label>
-                  <select onChange={handleTemplateSelect} className="w-full border p-2 rounded bg-gray-50">
-                    <option value="">-- Select a template --</option>
-                    {templates.map(t => (
-                      <option key={t.id} value={t.id}>{t.name}</option>
-                    ))}
-                  </select>
-                </div>
+            <div className="flex gap-2">
+              {company.status === 'NOT_ASSIGNED' && company.lockedById !== user?.id && (
+                <button type="button" onClick={handleLock} className="bg-orange-500 text-white px-4 py-2 rounded-lg shadow-sm hover:bg-orange-600 text-sm font-medium transition">
+                  Acquire Lock & Draft
+                </button>
               )}
-
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">To</label>
-                <input disabled type="text" className="w-full border p-2 rounded bg-gray-100 text-gray-600" 
-                  value={formData.email || 'No email provided for this company'} />
-              </div>
-
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">Subject</label>
-                {previewMode ? (
-                  <div className="p-2 border rounded bg-gray-50">{composer.subject}</div>
-                ) : (
-                  <input required type="text" className="w-full border p-2 rounded" 
-                    value={composer.subject} onChange={e => setComposer({...composer, subject: e.target.value})} />
-                )}
-              </div>
-
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">Message</label>
-                {previewMode ? (
-                  <div 
-                    className="p-4 border rounded bg-white min-h-[300px] prose prose-sm max-w-none"
-                    dangerouslySetInnerHTML={{ __html: composer.body }} 
-                  />
-                ) : (
-                  <textarea required rows={12} className="w-full border p-2 rounded font-sans text-sm" 
-                    value={composer.body} onChange={e => setComposer({...composer, body: e.target.value})} />
-                )}
-              </div>
-
-              {!previewMode && (
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">Attachments (Sponsorship Deck, etc.)</label>
-                  <input 
-                    type="file" 
-                    multiple 
-                    ref={fileInputRef}
-                    onChange={(e) => setAttachments(e.target.files)}
-                    className="w-full border p-2 rounded text-sm bg-gray-50" 
-                  />
-                </div>
+              {company.lockedById === user?.id && (
+                <button type="button" onClick={handleUnlock} className="bg-gray-100 text-gray-700 px-4 py-2 rounded-lg shadow-sm border hover:bg-gray-200 text-sm font-medium transition">
+                  Release Lock
+                </button>
               )}
+            </div>
+          </div>
 
-              <div className="pt-2 border-t flex gap-2">
-                <button disabled={sending || !formData.email} type="submit" className="flex-1 bg-blue-600 text-white p-2 rounded font-medium hover:bg-blue-700 disabled:opacity-50 flex items-center justify-center gap-2">
-                  {sending ? 'Sending via Gmail...' : 'Send Email'}
+          {showComposer ? (
+            <div className="bg-blue-50/50 p-6 rounded-lg border border-blue-100">
+              <div className="flex justify-between items-center mb-4">
+                <h3 className="text-lg font-bold text-blue-900">Draft Initial Email</h3>
+                <button 
+                  type="button"
+                  onClick={() => setPreviewMode(!previewMode)}
+                  className="text-xs bg-white px-3 py-1 rounded shadow-sm border border-gray-200 hover:bg-gray-50 font-medium"
+                >
+                  {previewMode ? 'Edit Mode' : 'Preview Mode'}
                 </button>
               </div>
-            </form>
-          </div>
-        )}
-      </div>
+              
+              <form onSubmit={handleSendEmail} className="space-y-4">
+                {!previewMode && (
+                  <div>
+                    <label className="block text-xs font-semibold text-gray-600 uppercase tracking-wide mb-1">Load Template</label>
+                    <select onChange={handleTemplateSelect} className="w-full border-gray-300 border p-2.5 rounded-lg bg-white text-sm shadow-sm focus:ring-blue-500 focus:border-blue-500">
+                      <option value="">-- Start from scratch or select a template --</option>
+                      {templates.map(t => (
+                        <option key={t.id} value={t.id}>{t.name}</option>
+                      ))}
+                    </select>
+                  </div>
+                )}
 
+                <div>
+                  <label className="block text-xs font-semibold text-gray-600 uppercase tracking-wide mb-1">To</label>
+                  <input disabled type="text" className="w-full border p-2.5 rounded-lg bg-gray-100 text-gray-600 text-sm border-gray-300" 
+                    value={company.email || 'No email provided for this company'} />
+                </div>
+
+                <div>
+                  <label className="block text-xs font-semibold text-gray-600 uppercase tracking-wide mb-1">Subject</label>
+                  {previewMode ? (
+                    <div className="p-3 border border-gray-200 rounded-lg bg-white text-sm shadow-sm">{composer.subject}</div>
+                  ) : (
+                    <input required type="text" className="w-full border border-gray-300 p-2.5 rounded-lg text-sm shadow-sm focus:ring-blue-500 focus:border-blue-500" 
+                      value={composer.subject} onChange={e => setComposer({...composer, subject: e.target.value})} />
+                  )}
+                </div>
+
+                <div>
+                  <label className="block text-xs font-semibold text-gray-600 uppercase tracking-wide mb-1">Message (HTML)</label>
+                  {previewMode ? (
+                    <div 
+                      className="p-4 border border-gray-200 rounded-lg bg-white min-h-[300px] prose prose-sm max-w-none shadow-sm"
+                      dangerouslySetInnerHTML={{ __html: composer.body }} 
+                    />
+                  ) : (
+                    <textarea required rows={12} className="w-full border border-gray-300 p-3 rounded-lg font-sans text-sm shadow-sm focus:ring-blue-500 focus:border-blue-500" 
+                      value={composer.body} onChange={e => setComposer({...composer, body: e.target.value})} />
+                  )}
+                </div>
+
+                {!previewMode && (
+                  <div>
+                    <label className="block text-xs font-semibold text-gray-600 uppercase tracking-wide mb-1">Attachments</label>
+                    <input 
+                      type="file" 
+                      multiple 
+                      ref={fileInputRef}
+                      onChange={(e) => setAttachments(e.target.files)}
+                      className="w-full border border-gray-300 p-2 rounded-lg text-sm bg-white shadow-sm file:mr-4 file:py-2 file:px-4 file:rounded-full file:border-0 file:text-sm file:font-semibold file:bg-blue-50 file:text-blue-700 hover:file:bg-blue-100" 
+                    />
+                  </div>
+                )}
+
+                <div className="pt-4 flex gap-2">
+                  <button disabled={sending || !company.email} type="submit" className="flex-1 bg-blue-600 text-white py-3 rounded-lg font-bold hover:bg-blue-700 disabled:opacity-50 flex items-center justify-center gap-2 shadow-sm transition">
+                    {sending ? 'Sending via Gmail API...' : 'Send Initial Outreach Email'}
+                  </button>
+                </div>
+              </form>
+            </div>
+          ) : (
+             <div className="text-center p-8 bg-gray-50 rounded-lg border border-dashed border-gray-300">
+               <p className="text-gray-500 text-sm">No active composer session.</p>
+               <p className="text-gray-400 text-xs mt-1">Acquire the lock or assign the company to begin drafting.</p>
+             </div>
+          )}
+        </div>
+
+        {/* Timelines and Placeholders */}
+        <div className="grid grid-cols-2 gap-6">
+          <div className="bg-white p-6 rounded-xl shadow-sm border border-gray-100 opacity-80">
+            <h3 className="font-bold text-gray-900 mb-4 text-lg border-b pb-2">Activity Timeline</h3>
+            <div className="space-y-4 relative pl-4 border-l-2 border-gray-200 text-sm text-gray-600">
+              <div className="relative">
+                <div className="absolute -left-[21px] top-1 w-3 h-3 bg-gray-300 rounded-full border-2 border-white"></div>
+                <p className="font-medium text-gray-900">Company Created</p>
+                <p className="text-xs">{new Date(company.createdAt).toLocaleString()}</p>
+              </div>
+              <div className="relative">
+                <div className="absolute -left-[21px] top-1 w-3 h-3 bg-gray-300 rounded-full border-2 border-white"></div>
+                <p className="font-medium text-gray-900">Waiting for further interactions...</p>
+              </div>
+            </div>
+          </div>
+
+          <div className="bg-white p-6 rounded-xl shadow-sm border border-gray-100 opacity-80 flex flex-col gap-4">
+            <div>
+              <h3 className="font-bold text-gray-900 mb-2 text-lg border-b pb-2">Internal Notes</h3>
+              <p className="text-sm text-gray-500 italic">No notes added yet.</p>
+            </div>
+            <div>
+              <h3 className="font-bold text-gray-900 mb-2 text-lg border-b pb-2">Meetings</h3>
+              <p className="text-sm text-gray-500 italic">No meetings scheduled.</p>
+            </div>
+            <div>
+              <h3 className="font-bold text-gray-900 mb-2 text-lg border-b pb-2">Replies</h3>
+              <p className="text-sm text-gray-500 italic">Awaiting sponsor reply...</p>
+            </div>
+          </div>
+        </div>
+
+      </div>
     </div>
   );
 }

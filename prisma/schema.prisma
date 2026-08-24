@@ -71,6 +71,8 @@ model Company {
   lockedById String?
   lockedBy   User?     @relation("CompanyLock", fields: [lockedById], references: [id])
   lockedAt   DateTime?
+  
+  followUpDate  DateTime?
 
   assignment Assignment? // One-to-one relation enforces exactly one current assigned owner
   emails     Email[]
