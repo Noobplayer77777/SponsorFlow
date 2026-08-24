@@ -22,6 +22,10 @@ export default function CompanyProfilePage() {
   const [previewMode, setPreviewMode] = useState(false);
   const [newNote, setNewNote] = useState('');
   const [submittingNote, setSubmittingNote] = useState(false);
+  
+  const [followUpDate, setFollowUpDate] = useState('');
+  const [followUpNote, setFollowUpNote] = useState('');
+  const [submittingFollowUp, setSubmittingFollowUp] = useState(false);
 
   useEffect(() => {
     const fetchCompanyAndTemplates = async () => {
@@ -136,6 +140,28 @@ export default function CompanyProfilePage() {
       alert('Failed to add note');
     } finally {
       setSubmittingNote(false);
+    }
+  };
+
+  const handleScheduleFollowUp = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!followUpDate) return;
+
+    setSubmittingFollowUp(true);
+    try {
+      await api.post(`/companies/${params.id}/follow-ups`, {
+        date: new Date(followUpDate).toISOString(),
+        note: followUpNote
+      });
+      setFollowUpDate('');
+      setFollowUpNote('');
+      alert('Follow-up scheduled successfully!');
+      const companyRes = await api.get(`/companies/${params.id}`);
+      setCompany(companyRes.data);
+    } catch (error: any) {
+      alert(error.message || 'Failed to schedule follow-up');
+    } finally {
+      setSubmittingFollowUp(false);
     }
   };
 
@@ -377,7 +403,7 @@ export default function CompanyProfilePage() {
             
             <div className="bg-white p-6 rounded-xl shadow-sm border border-gray-100">
               <h3 className="font-bold text-gray-900 mb-2 text-lg border-b pb-2">Replies Received</h3>
-              <div className="max-h-48 overflow-y-auto space-y-3">
+              <div className="max-h-48 overflow-y-auto space-y-3 mb-4">
                 {company.replies?.length > 0 ? company.replies.map((reply: any) => (
                   <div key={reply.id} className="bg-green-50 p-3 rounded text-sm border border-green-100">
                     <p className="font-semibold text-green-900">{reply.sender}</p>
@@ -388,6 +414,35 @@ export default function CompanyProfilePage() {
                   <p className="text-sm text-gray-500 italic">Awaiting sponsor reply...</p>
                 )}
               </div>
+            </div>
+
+            <div className="bg-white p-6 rounded-xl shadow-sm border border-gray-100">
+              <h3 className="font-bold text-gray-900 mb-2 text-lg border-b pb-2">Schedule Follow-up</h3>
+              <form onSubmit={handleScheduleFollowUp} className="space-y-3 mt-3">
+                <input 
+                  type="datetime-local" 
+                  value={followUpDate}
+                  onChange={e => setFollowUpDate(e.target.value)}
+                  className="w-full border p-2 rounded text-sm shadow-inner bg-gray-50 focus:bg-white"
+                  required
+                  disabled={submittingFollowUp}
+                />
+                <input 
+                  type="text" 
+                  value={followUpNote}
+                  onChange={e => setFollowUpNote(e.target.value)}
+                  placeholder="Optional reminder note..."
+                  className="w-full border p-2 rounded text-sm shadow-inner bg-gray-50 focus:bg-white"
+                  disabled={submittingFollowUp}
+                />
+                <button 
+                  type="submit" 
+                  disabled={submittingFollowUp || !followUpDate}
+                  className="w-full bg-blue-600 text-white py-2 rounded font-medium text-sm hover:bg-blue-700 disabled:opacity-50"
+                >
+                  Schedule Notification
+                </button>
+              </form>
             </div>
           </div>
         </div>

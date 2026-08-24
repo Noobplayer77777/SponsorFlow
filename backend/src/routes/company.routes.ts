@@ -11,6 +11,7 @@ import {
 import { requireRole } from '../middleware/auth.middleware';
 import { addNote } from '../controllers/note.controller';
 import { addReply } from '../controllers/reply.controller';
+import { createFollowUp } from '../controllers/followUp.controller';
 
 const router = Router();
 const upload = multer({ storage: multer.memoryStorage() });
@@ -27,8 +28,11 @@ router.post('/:companyId/notes', addNote);
 // @route POST /api/companies/replies
 router.post('/:companyId/replies', addReply);
 
+// @route POST /api/companies/:companyId/follow-ups
+router.post('/:companyId/follow-ups', createFollowUp);
+
 // @route POST /api/companies
-router.post('/', createCompany);
+router.post('/', requireRole('ADMIN'), createCompany);
 
 // @route PUT /api/companies/:id
 router.put('/:id', updateCompany);

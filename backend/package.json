@@ -15,12 +15,14 @@
     "type": "commonjs",
     "dependencies": {
         "@prisma/client": "5.10.2",
+        "bullmq": "^6.2.0",
         "cors": "^2.8.6",
         "csv-parse": "^7.0.2",
         "dotenv": "^17.4.2",
         "express": "^5.2.1",
         "google-auth-library": "^11.0.2",
         "googleapis": "^176.0.0",
+        "ioredis": "^6.0.0",
         "jsonwebtoken": "^9.0.3",
         "multer": "^2.2.0",
         "zod": "^4.4.3"

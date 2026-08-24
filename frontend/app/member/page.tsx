@@ -3,6 +3,7 @@ import { useAuth } from '../../contexts/AuthContext';
 import { useEffect, useState, useMemo } from 'react';
 import { api } from '../../lib/api';
 import Link from 'next/link';
+import { NotificationBell } from '../../components/NotificationBell';
 
 export default function MemberDashboard() {
   const { user, logout } = useAuth();
@@ -87,6 +88,7 @@ export default function MemberDashboard() {
               Connect Gmail
             </button>
           )}
+          <NotificationBell />
           <button onClick={logout} className="text-gray-500 hover:text-gray-900 text-sm font-medium">Logout</button>
         </div>
       </div>

@@ -3,6 +3,7 @@ import prisma from '../utils/prisma';
 import { z } from 'zod';
 import { parse } from 'csv-parse/sync';
 import { logActivity } from '../services/activity.service';
+import { createNotification } from '../services/notification.service';
 
 // --- ZOD SCHEMAS ---
 const companySchema = z.object({
@@ -171,6 +172,19 @@ export const updateCompany = async (req: Request, res: Response): Promise<void> 
       where: { id: req.params.id as string },
       data: validatedData
     });
+    
+    if (validatedData.status && existingCompany.status !== validatedData.status) {
+      await logActivity(company.id, 'STATUS_CHANGED', `Status changed to ${validatedData.status}`, req.user!.id);
+      if (validatedData.status === 'CONFIRMED' && existingCompany.assignment?.userId) {
+        await createNotification(
+          existingCompany.assignment.userId,
+          'SPONSORSHIP_CONFIRMED',
+          `Sponsorship confirmed for ${existingCompany.companyName}!`,
+          company.id
+        );
+      }
+    }
+    
     res.json({ success: true, data: company });
   } catch (error) {
     if (error instanceof z.ZodError) {
@@ -297,3 +311,4 @@ export const importCompanies = async (req: Request, res: Response): Promise<void
     res.status(500).json({ success: false, message: 'Server error during import' });
   }
 };
+

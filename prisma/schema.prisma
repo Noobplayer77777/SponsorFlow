@@ -52,6 +52,8 @@ model User {
   lockedCompanies Company[]    @relation("CompanyLock")
   notes           Note[]
   activities      Activity[]
+  followUps       FollowUp[]
+  notifications   Notification[]
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -81,6 +83,8 @@ model Company {
   replies    Reply[]
   notes      Note[]
   activities Activity[]
+  followUps  FollowUp[]
+  notifications Notification[]
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -165,6 +169,44 @@ model Activity {
   
   type        String
   description String
+  createdAt   DateTime @default(now())
+}
+
+enum FollowUpStatus {
+  PENDING
+  COMPLETED
+  CANCELLED
+}
+
+model FollowUp {
+  id          String   @id @default(uuid())
+  companyId   String
+  company     Company  @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  
+  userId      String
+  user        User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  
+  date        DateTime
+  note        String?
+  status      FollowUpStatus @default(PENDING)
+  notified    Boolean  @default(false)
+  
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+}
+
+model Notification {
+  id          String   @id @default(uuid())
+  userId      String
+  user        User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  
+  type        String
+  message     String
+  read        Boolean  @default(false)
+  
+  companyId   String?
+  company     Company? @relation(fields: [companyId], references: [id], onDelete: SetNull)
+  
   createdAt   DateTime @default(now())
 }
 

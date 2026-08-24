@@ -2,6 +2,7 @@ import { Request, Response } from 'express';
 import prisma from '../utils/prisma';
 import { Prisma } from '@prisma/client';
 import { logActivity } from '../services/activity.service';
+import { createNotification } from '../services/notification.service';
 
 // @desc    Assign a company to a user (Admin only)
 // @route   POST /api/assignments
@@ -19,13 +20,15 @@ export const assignCompany = async (req: Request, res: Response): Promise<void> 
         data: { companyId, userId },
       });
 
-      await tx.company.update({
+      const companyInfo = await tx.company.update({
         where: { id: companyId as string },
         data: { status: 'ASSIGNED' },
       });
 
       const user = await tx.user.findUnique({ where: { id: userId as string } });
       await logActivity(companyId as string, 'COMPANY_ASSIGNED', `Assigned to ${user?.name || userId}`, req.user!.id);
+      
+      await createNotification(userId as string, 'NEW_ASSIGNMENT', `You have been assigned to ${companyInfo.companyName}`, companyId as string);
 
       return newAssignment;
     });
@@ -56,20 +59,21 @@ export const reassignCompany = async (req: Request, res: Response): Promise<void
     }
 
     await prisma.$transaction(async (tx) => {
-      // Upsert handles both assigning an unassigned company OR overwriting the existing owner
       await tx.assignment.upsert({
         where: { companyId: companyId as string },
         update: { userId: userId as string },
         create: { companyId: companyId as string, userId: userId as string }
       });
       
-      await tx.company.update({
+      const companyInfo = await tx.company.update({
         where: { id: companyId as string },
         data: { status: 'ASSIGNED' }
       });
 
       const user = await tx.user.findUnique({ where: { id: userId as string } });
       await logActivity(companyId as string, 'COMPANY_REASSIGNED', `Reassigned to ${user?.name || userId}`, req.user!.id);
+      
+      await createNotification(userId as string, 'NEW_ASSIGNMENT', `You have been assigned to ${companyInfo.companyName}`, companyId as string);
     });
 
     res.json({ success: true, message: 'Company reassigned successfully' });
@@ -133,11 +137,12 @@ export const autoDistribute = async (req: Request, res: Response): Promise<void>
     const assignmentsToCreate = unassignedCompanies.map(c => {
       const assignedTo = members[memberIndex].id;
       memberIndex = (memberIndex + 1) % members.length;
-      return { companyId: c.id, userId: assignedTo };
+      return { companyId: c.id, userId: assignedTo, companyName: c.companyName };
     });
 
     await prisma.$transaction(async (tx) => {
-      await tx.assignment.createMany({ data: assignmentsToCreate });
+      const dbAssignments = assignmentsToCreate.map(a => ({ companyId: a.companyId, userId: a.userId }));
+      await tx.assignment.createMany({ data: dbAssignments });
       
       const companyIds = assignmentsToCreate.map(a => a.companyId);
       await tx.company.updateMany({
@@ -147,6 +152,7 @@ export const autoDistribute = async (req: Request, res: Response): Promise<void>
       
       for (const a of assignmentsToCreate) {
         await logActivity(a.companyId, 'COMPANY_ASSIGNED', `Auto-assigned to member`, req.user!.id);
+        await createNotification(a.userId, 'NEW_ASSIGNMENT', `You have been auto-assigned to ${a.companyName}`, a.companyId);
       }
     });
 
