@@ -1,27 +1,56 @@
 import { Router } from 'express';
-import {
-  getCompanies,
-  getCompanyById,
-  createCompany,
-  updateCompany,
-  updateCompanyStatus,
+import multer from 'multer';
+import { 
+  getCompanies, 
+  getCompany, 
+  createCompany, 
+  updateCompany, 
   deleteCompany,
+  importCompanies
 } from '../controllers/company.controller';
+import { requireRole } from '../middleware/auth.middleware';
+import { addNote } from '../controllers/note.controller';
+import { addReply } from '../controllers/reply.controller';
+import { createFollowUp } from '../controllers/followUp.controller';
 
 const router = Router();
+const upload = multer({ storage: multer.memoryStorage() });
 
-// Base route: /api/companies
+// @route GET /api/companies
+router.get('/', getCompanies);
 
-router.route('/')
-  .get(getCompanies)
-  .post(createCompany);
+// @route GET /api/companies/:id
+router.get('/:id', getCompany);
 
-router.route('/:id')
-  .get(getCompanyById)
-  .patch(updateCompany)
-  .delete(deleteCompany);
+// @route POST /api/companies/notes
+router.post('/:companyId/notes', addNote);
 
-router.route('/:id/status')
-  .patch(updateCompanyStatus);
+// @route POST /api/companies/replies
+router.post('/:companyId/replies', addReply);
+
+// @route POST /api/companies/:companyId/follow-ups
+router.post('/:companyId/follow-ups', createFollowUp);
+
+// @route POST /api/companies
+router.post('/', requireRole('ADMIN'), createCompany);
+
+// @route PUT /api/companies/:id
+router.put('/:id', updateCompany);
+
+// @route DELETE /api/companies/:id
+// ONLY ADMIN CAN DELETE
+router.delete('/:id', requireRole('ADMIN'), deleteCompany);
+
+// @route POST /api/companies/import
+// ONLY ADMIN CAN IMPORT
+router.post('/import', requireRole('ADMIN'), upload.single('file'), importCompanies);
+
+import { lockCompany, unlockCompany } from '../controllers/assignment.controller';
+
+// @route POST /api/companies/:id/lock
+router.post('/:id/lock', lockCompany);
+
+// @route POST /api/companies/:id/unlock
+router.post('/:id/unlock', unlockCompany);
 
 export default router;

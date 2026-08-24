@@ -1,23 +1,34 @@
 import { Router } from 'express';
-import {
-  getTemplates,
-  getTemplateById,
-  createTemplate,
-  updateTemplate,
-  deleteTemplate,
+import { 
+  getTemplates, 
+  getTemplate, 
+  createTemplate, 
+  updateTemplate, 
+  deleteTemplate 
 } from '../controllers/template.controller';
+import { requireAuth, requireRole } from '../middleware/auth.middleware';
 
 const router = Router();
 
-// Base route: /api/templates
+// Members can read templates, Admin can manage them
+router.use(requireAuth);
 
-router.route('/')
-  .get(getTemplates)
-  .post(createTemplate);
+// @route GET /api/templates
+router.get('/', getTemplates);
 
-router.route('/:id')
-  .get(getTemplateById)
-  .patch(updateTemplate)
-  .delete(deleteTemplate);
+// @route GET /api/templates/:id
+router.get('/:id', getTemplate);
+
+// ADMIN ONLY ROUTES
+router.use(requireRole('ADMIN'));
+
+// @route POST /api/templates
+router.post('/', createTemplate);
+
+// @route PUT /api/templates/:id
+router.put('/:id', updateTemplate);
+
+// @route DELETE /api/templates/:id
+router.delete('/:id', deleteTemplate);
 
 export default router;
