@@ -20,6 +20,7 @@ const companySchema = z.object({
     'NOT_ASSIGNED', 'ASSIGNED', 'EMAIL_DRAFTED', 'EMAIL_SENT', 
     'OPENED', 'REPLIED', 'INTERESTED', 'NEGOTIATING', 'CONFIRMED', 'REJECTED'
   ]).optional(),
+  amountRaised: z.number().optional()
 });
 
 // --- API CONTROLLERS ---

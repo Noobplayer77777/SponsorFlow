@@ -77,6 +77,7 @@ model Company {
   lockedAt   DateTime?
   
   followUpDate  DateTime?
+  amountRaised  Float         @default(0)
 
   assignment Assignment? // One-to-one relation enforces exactly one current assigned owner
   emails     Email[]
