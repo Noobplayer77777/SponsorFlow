@@ -20,6 +20,8 @@ export default function CompanyProfilePage() {
   const [sending, setSending] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [previewMode, setPreviewMode] = useState(false);
+  const [newNote, setNewNote] = useState('');
+  const [submittingNote, setSubmittingNote] = useState(false);
 
   useEffect(() => {
     const fetchCompanyAndTemplates = async () => {
@@ -117,6 +119,23 @@ export default function CompanyProfilePage() {
       alert(error.message || 'Failed to send email');
     } finally {
       setSending(false);
+    }
+  };
+
+  const handleAddNote = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!newNote.trim()) return;
+    
+    setSubmittingNote(true);
+    try {
+      await api.post(`/companies/${params.id}/notes`, { content: newNote });
+      setNewNote('');
+      const companyRes = await api.get(`/companies/${params.id}`);
+      setCompany(companyRes.data);
+    } catch (error) {
+      alert('Failed to add note');
+    } finally {
+      setSubmittingNote(false);
     }
   };
 
@@ -309,33 +328,66 @@ export default function CompanyProfilePage() {
 
         {/* Timelines and Placeholders */}
         <div className="grid grid-cols-2 gap-6">
-          <div className="bg-white p-6 rounded-xl shadow-sm border border-gray-100 opacity-80">
+          <div className="bg-white p-6 rounded-xl shadow-sm border border-gray-100">
             <h3 className="font-bold text-gray-900 mb-4 text-lg border-b pb-2">Activity Timeline</h3>
-            <div className="space-y-4 relative pl-4 border-l-2 border-gray-200 text-sm text-gray-600">
-              <div className="relative">
-                <div className="absolute -left-[21px] top-1 w-3 h-3 bg-gray-300 rounded-full border-2 border-white"></div>
-                <p className="font-medium text-gray-900">Company Created</p>
-                <p className="text-xs">{new Date(company.createdAt).toLocaleString()}</p>
-              </div>
-              <div className="relative">
-                <div className="absolute -left-[21px] top-1 w-3 h-3 bg-gray-300 rounded-full border-2 border-white"></div>
-                <p className="font-medium text-gray-900">Waiting for further interactions...</p>
-              </div>
+            <div className="space-y-4 relative pl-4 border-l-2 border-gray-200 text-sm text-gray-600 max-h-96 overflow-y-auto">
+              {company.activities?.length > 0 ? company.activities.map((act: any) => (
+                <div key={act.id} className="relative">
+                  <div className="absolute -left-[21px] top-1 w-3 h-3 bg-blue-500 rounded-full border-2 border-white"></div>
+                  <p className="font-medium text-gray-900">{act.type.replace(/_/g, ' ')}</p>
+                  <p className="text-gray-700">{act.description}</p>
+                  <p className="text-xs text-gray-500 mt-0.5">{new Date(act.createdAt).toLocaleString()} {act.user ? `· ${act.user.name}` : ''}</p>
+                </div>
+              )) : (
+                <div className="relative">
+                  <div className="absolute -left-[21px] top-1 w-3 h-3 bg-gray-300 rounded-full border-2 border-white"></div>
+                  <p className="font-medium text-gray-900">Company Created</p>
+                  <p className="text-xs">{new Date(company.createdAt).toLocaleString()}</p>
+                </div>
+              )}
             </div>
           </div>
 
-          <div className="bg-white p-6 rounded-xl shadow-sm border border-gray-100 opacity-80 flex flex-col gap-4">
-            <div>
+          <div className="space-y-6 flex flex-col">
+            <div className="bg-white p-6 rounded-xl shadow-sm border border-gray-100 flex-1 flex flex-col">
               <h3 className="font-bold text-gray-900 mb-2 text-lg border-b pb-2">Internal Notes</h3>
-              <p className="text-sm text-gray-500 italic">No notes added yet.</p>
+              
+              <div className="flex-1 max-h-48 overflow-y-auto space-y-3 mb-4">
+                {company.notes?.length > 0 ? company.notes.map((note: any) => (
+                  <div key={note.id} className="bg-yellow-50 p-3 rounded text-sm border border-yellow-100">
+                    <p className="text-gray-800">{note.content}</p>
+                    <p className="text-xs text-gray-500 mt-1">{note.author?.name} · {new Date(note.createdAt).toLocaleString()}</p>
+                  </div>
+                )) : (
+                  <p className="text-sm text-gray-500 italic">No notes added yet.</p>
+                )}
+              </div>
+
+              <form onSubmit={handleAddNote} className="mt-auto pt-2 border-t">
+                <input 
+                  type="text" 
+                  value={newNote}
+                  onChange={e => setNewNote(e.target.value)}
+                  placeholder="Type a note and press enter..."
+                  className="w-full border p-2 rounded text-sm shadow-inner bg-gray-50 focus:bg-white"
+                  disabled={submittingNote}
+                />
+              </form>
             </div>
-            <div>
-              <h3 className="font-bold text-gray-900 mb-2 text-lg border-b pb-2">Meetings</h3>
-              <p className="text-sm text-gray-500 italic">No meetings scheduled.</p>
-            </div>
-            <div>
-              <h3 className="font-bold text-gray-900 mb-2 text-lg border-b pb-2">Replies</h3>
-              <p className="text-sm text-gray-500 italic">Awaiting sponsor reply...</p>
+            
+            <div className="bg-white p-6 rounded-xl shadow-sm border border-gray-100">
+              <h3 className="font-bold text-gray-900 mb-2 text-lg border-b pb-2">Replies Received</h3>
+              <div className="max-h-48 overflow-y-auto space-y-3">
+                {company.replies?.length > 0 ? company.replies.map((reply: any) => (
+                  <div key={reply.id} className="bg-green-50 p-3 rounded text-sm border border-green-100">
+                    <p className="font-semibold text-green-900">{reply.sender}</p>
+                    <p className="text-gray-800 whitespace-pre-wrap">{reply.content}</p>
+                    <p className="text-xs text-gray-500 mt-1">{new Date(reply.createdAt).toLocaleString()}</p>
+                  </div>
+                )) : (
+                  <p className="text-sm text-gray-500 italic">Awaiting sponsor reply...</p>
+                )}
+              </div>
             </div>
           </div>
         </div>

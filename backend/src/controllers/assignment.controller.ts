@@ -1,6 +1,7 @@
 import { Request, Response } from 'express';
 import prisma from '../utils/prisma';
 import { Prisma } from '@prisma/client';
+import { logActivity } from '../services/activity.service';
 
 // @desc    Assign a company to a user (Admin only)
 // @route   POST /api/assignments
@@ -22,6 +23,9 @@ export const assignCompany = async (req: Request, res: Response): Promise<void> 
         where: { id: companyId as string },
         data: { status: 'ASSIGNED' },
       });
+
+      const user = await tx.user.findUnique({ where: { id: userId as string } });
+      await logActivity(companyId as string, 'COMPANY_ASSIGNED', `Assigned to ${user?.name || userId}`, req.user!.id);
 
       return newAssignment;
     });
@@ -63,6 +67,9 @@ export const reassignCompany = async (req: Request, res: Response): Promise<void
         where: { id: companyId as string },
         data: { status: 'ASSIGNED' }
       });
+
+      const user = await tx.user.findUnique({ where: { id: userId as string } });
+      await logActivity(companyId as string, 'COMPANY_REASSIGNED', `Reassigned to ${user?.name || userId}`, req.user!.id);
     });
 
     res.json({ success: true, message: 'Company reassigned successfully' });
@@ -87,6 +94,7 @@ export const unassignCompany = async (req: Request, res: Response): Promise<void
           lockedAt: null
         },
       });
+      await logActivity(companyId as string, 'ASSIGNMENT_REMOVED', `Assignment removed`, req.user!.id);
     });
 
     res.json({ success: true, message: 'Company unassigned successfully' });
@@ -136,6 +144,10 @@ export const autoDistribute = async (req: Request, res: Response): Promise<void>
         where: { id: { in: companyIds } },
         data: { status: 'ASSIGNED' }
       });
+      
+      for (const a of assignmentsToCreate) {
+        await logActivity(a.companyId, 'COMPANY_ASSIGNED', `Auto-assigned to member`, req.user!.id);
+      }
     });
 
     res.json({ success: true, message: `Distributed ${assignmentsToCreate.length} companies among ${members.length} members.` });

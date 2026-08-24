@@ -50,6 +50,8 @@ model User {
   assignments     Assignment[]
   sentEmails      Email[]
   lockedCompanies Company[]    @relation("CompanyLock")
+  notes           Note[]
+  activities      Activity[]
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -76,6 +78,9 @@ model Company {
 
   assignment Assignment? // One-to-one relation enforces exactly one current assigned owner
   emails     Email[]
+  replies    Reply[]
+  notes      Note[]
+  activities Activity[]
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -120,4 +125,46 @@ model Email {
   sentAt    DateTime?
   attachments Json?   // Array of attachment metadata (url, filename)
   createdAt DateTime  @default(now())
+  
+  replies   Reply[]
 }
+
+model Reply {
+  id        String   @id @default(uuid())
+  companyId String
+  company   Company  @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  
+  emailId   String?
+  email     Email?   @relation(fields: [emailId], references: [id], onDelete: SetNull)
+  
+  sender    String
+  content   String
+  
+  createdAt DateTime @default(now())
+}
+
+model Note {
+  id        String   @id @default(uuid())
+  companyId String
+  company   Company  @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  
+  authorId  String
+  author    User     @relation(fields: [authorId], references: [id], onDelete: Cascade)
+  
+  content   String
+  createdAt DateTime @default(now())
+}
+
+model Activity {
+  id          String   @id @default(uuid())
+  companyId   String
+  company     Company  @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  
+  userId      String?
+  user        User?    @relation(fields: [userId], references: [id], onDelete: SetNull)
+  
+  type        String
+  description String
+  createdAt   DateTime @default(now())
+}
+

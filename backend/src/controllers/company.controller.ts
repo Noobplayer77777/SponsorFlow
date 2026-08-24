@@ -2,6 +2,7 @@ import { Request, Response } from 'express';
 import prisma from '../utils/prisma';
 import { z } from 'zod';
 import { parse } from 'csv-parse/sync';
+import { logActivity } from '../services/activity.service';
 
 // --- ZOD SCHEMAS ---
 const companySchema = z.object({
@@ -90,7 +91,13 @@ export const getCompany = async (req: Request, res: Response): Promise<void> => 
   try {
     const company = await prisma.company.findUnique({
       where: { id: req.params.id as string },
-      include: { assignment: { include: { user: { select: { name: true } } } } }
+      include: { 
+        assignment: { include: { user: { select: { name: true } } } },
+        notes: { include: { author: { select: { name: true } } }, orderBy: { createdAt: 'desc' } },
+        replies: { orderBy: { createdAt: 'desc' } },
+        activities: { include: { user: { select: { name: true } } }, orderBy: { createdAt: 'desc' } },
+        emails: { orderBy: { createdAt: 'desc' } }
+      }
     });
 
     if (!company) {

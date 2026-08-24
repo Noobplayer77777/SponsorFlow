@@ -2,6 +2,7 @@ import { Request, Response } from 'express';
 import { generateGmailAuthUrl, handleGmailCallback, sendGmail } from '../services/gmail.service';
 import prisma from '../utils/prisma';
 import { storageService } from '../services/storage.service';
+import { logActivity } from '../services/activity.service';
 
 // @desc    Get current Gmail connection status
 // @route   GET /api/gmail/status
@@ -154,6 +155,8 @@ export const sendTestEmail = async (req: Request, res: Response): Promise<void> 
           lockedAt: null
         }
       });
+      
+      await logActivity(companyId as string, 'EMAIL_SENT', `Initial email sent: ${subject}`, req.user!.id);
     });
 
     res.json({ success: true, message: 'Email sent successfully via Gmail API' });

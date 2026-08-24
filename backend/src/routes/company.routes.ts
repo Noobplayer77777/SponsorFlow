@@ -9,6 +9,8 @@ import {
   importCompanies
 } from '../controllers/company.controller';
 import { requireRole } from '../middleware/auth.middleware';
+import { addNote } from '../controllers/note.controller';
+import { addReply } from '../controllers/reply.controller';
 
 const router = Router();
 const upload = multer({ storage: multer.memoryStorage() });
@@ -18,6 +20,12 @@ router.get('/', getCompanies);
 
 // @route GET /api/companies/:id
 router.get('/:id', getCompany);
+
+// @route POST /api/companies/notes
+router.post('/:companyId/notes', addNote);
+
+// @route POST /api/companies/replies
+router.post('/:companyId/replies', addReply);
 
 // @route POST /api/companies
 router.post('/', createCompany);
