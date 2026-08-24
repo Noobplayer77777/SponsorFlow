@@ -50,7 +50,7 @@ export const assignCompany = async (req: Request, res: Response): Promise<void> 
 // @route   PUT /api/assignments/:companyId
 export const reassignCompany = async (req: Request, res: Response): Promise<void> => {
   try {
-    const { companyId } = req.params;
+    const { companyId } = req.params as { companyId: string };
     const { userId } = req.body;
 
     if (!userId) {
@@ -86,7 +86,7 @@ export const reassignCompany = async (req: Request, res: Response): Promise<void
 // @route   DELETE /api/assignments/:companyId
 export const unassignCompany = async (req: Request, res: Response): Promise<void> => {
   try {
-    const { companyId } = req.params;
+    const { companyId } = req.params as { companyId: string };
 
     await prisma.$transaction(async (tx) => {
       await tx.assignment.delete({ where: { companyId: companyId as string } });

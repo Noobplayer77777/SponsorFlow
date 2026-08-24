@@ -4,7 +4,7 @@ import { logActivity } from '../services/activity.service';
 
 export const createFollowUp = async (req: Request, res: Response): Promise<void> => {
   try {
-    const { companyId } = req.params;
+    const { companyId } = req.params as { companyId: string };
     const { date, note } = req.body;
 
     if (!date) {
@@ -42,7 +42,7 @@ export const createFollowUp = async (req: Request, res: Response): Promise<void>
 
 export const updateFollowUpStatus = async (req: Request, res: Response): Promise<void> => {
   try {
-    const { id } = req.params;
+    const { id } = req.params as { id: string };
     const { status } = req.body;
 
     if (!['PENDING', 'COMPLETED', 'CANCELLED'].includes(status)) {

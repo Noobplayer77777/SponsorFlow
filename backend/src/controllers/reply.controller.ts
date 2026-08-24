@@ -5,7 +5,7 @@ import { createNotification } from '../services/notification.service';
 
 export const addReply = async (req: Request, res: Response): Promise<void> => {
   try {
-    const { companyId } = req.params;
+    const { companyId } = req.params as { companyId: string };
     const { sender, content, emailId } = req.body;
 
     if (!sender || !content) {

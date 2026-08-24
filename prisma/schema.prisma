@@ -90,6 +90,9 @@ model Company {
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
+
+  @@index([status])
+  @@index([industry])
 }
 
 model Assignment {
@@ -102,6 +105,8 @@ model Assignment {
   user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   assignedAt DateTime @default(now())
+  
+  @@index([userId])
 }
 
 model EmailTemplate {
@@ -133,6 +138,9 @@ model Email {
   createdAt DateTime  @default(now())
   
   replies   Reply[]
+  
+  @@index([companyId])
+  @@index([senderId])
 }
 
 model Reply {
@@ -147,6 +155,8 @@ model Reply {
   content   String
   
   createdAt DateTime @default(now())
+  
+  @@index([companyId])
 }
 
 model Note {
@@ -159,6 +169,8 @@ model Note {
   
   content   String
   createdAt DateTime @default(now())
+  
+  @@index([companyId])
 }
 
 model Activity {
@@ -172,6 +184,8 @@ model Activity {
   type        String
   description String
   createdAt   DateTime @default(now())
+  
+  @@index([companyId])
 }
 
 enum FollowUpStatus {
@@ -195,6 +209,8 @@ model FollowUp {
   
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
+  
+  @@index([status, notified, date])
 }
 
 model Notification {
@@ -210,5 +226,7 @@ model Notification {
   company     Company? @relation(fields: [companyId], references: [id], onDelete: SetNull)
   
   createdAt   DateTime @default(now())
+  
+  @@index([userId, read])
 }
 

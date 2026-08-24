@@ -19,12 +19,12 @@ export const setupFollowUpCron = async () => {
     await followUpQueue.add(
       'check-due-follow-ups',
       {},
-      {
+      ({
         repeat: {
-          pattern: '* * * * *', // Every minute
+          pattern: '* * * * *',
         },
-        jobId: 'check-due-follow-ups-job', // idempotency key for the repeatable job itself
-      }
+        jobId: 'check-due-follow-ups-job',
+      } as any)
     );
     console.log('Follow-up cron job scheduled.');
   } catch (error) {

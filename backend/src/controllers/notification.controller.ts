@@ -19,7 +19,7 @@ export const getNotifications = async (req: Request, res: Response): Promise<voi
 
 export const markAsRead = async (req: Request, res: Response): Promise<void> => {
   try {
-    const { id } = req.params;
+    const { id } = req.params as { id: string };
     await prisma.notification.update({
       where: { id, userId: req.user!.id },
       data: { read: true }
