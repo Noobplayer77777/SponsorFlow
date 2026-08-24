@@ -78,6 +78,7 @@ model Company {
   
   followUpDate  DateTime?
   amountRaised  Float         @default(0)
+  aiSummary     String?       @db.Text
 
   assignment Assignment? // One-to-one relation enforces exactly one current assigned owner
   emails     Email[]

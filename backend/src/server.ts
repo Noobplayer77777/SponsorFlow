@@ -11,6 +11,7 @@ import gmailRoutes from './routes/gmail.routes';
 import notificationRoutes from './routes/notification.routes';
 import followUpRoutes from './routes/followUp.routes';
 import analyticsRoutes from './routes/analytics.routes';
+import aiRoutes from './routes/ai.routes';
 import { requireAuth } from './middleware/auth.middleware';
 
 // Load environment variables
@@ -33,6 +34,7 @@ app.use('/api/templates', requireAuth, templateRoutes);
 app.use('/api/notifications', requireAuth, notificationRoutes);
 app.use('/api/follow-ups', requireAuth, followUpRoutes);
 app.use('/api/analytics', requireAuth, analyticsRoutes);
+app.use('/api/ai', requireAuth, aiRoutes);
 
 // Health check endpoint
 app.get('/api/health', (req: Request, res: Response) => {

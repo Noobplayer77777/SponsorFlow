@@ -26,6 +26,10 @@ export default function CompanyProfilePage() {
   const [followUpDate, setFollowUpDate] = useState('');
   const [followUpNote, setFollowUpNote] = useState('');
   const [submittingFollowUp, setSubmittingFollowUp] = useState(false);
+  const [generatingIntro, setGeneratingIntro] = useState(false);
+  const [generatingSummary, setGeneratingSummary] = useState(false);
+  const [suggestingReplyFor, setSuggestingReplyFor] = useState<string | null>(null);
+  const [suggestedReply, setSuggestedReply] = useState('');
 
   useEffect(() => {
     const fetchCompanyAndTemplates = async () => {
@@ -143,6 +147,59 @@ export default function CompanyProfilePage() {
     }
   };
 
+    const handleGenerateIntro = async () => {
+    if (!company) return;
+    setGeneratingIntro(true);
+    try {
+      const res = await api.post('/ai/personalize', { companyId: company.id });
+      if (res.data?.sentence) {
+        setComposer(prev => ({ ...prev, body: prev.body ? res.data.sentence + '\n\n' + prev.body : res.data.sentence }));
+      }
+    } catch (e) {
+      alert('Failed to generate intro.');
+    } finally {
+      setGeneratingIntro(false);
+    }
+  };
+
+  const handleGenerateSummary = async () => {
+    if (!company) return;
+    setGeneratingSummary(true);
+    try {
+      const res = await api.post('/ai/summary', { companyId: company.id });
+      if (res.data?.summary) {
+        setCompany({ ...company, aiSummary: res.data.summary });
+      }
+    } catch (e) {
+      alert('Failed to generate summary.');
+    } finally {
+      setGeneratingSummary(false);
+    }
+  };
+
+  const handleSuggestReply = async (replyId: string, replyContent: string) => {
+    setSuggestingReplyFor(replyId);
+    setSuggestedReply('');
+    try {
+      // Find earlier context if possible (just pass thread if available, or just the content)
+      const res = await api.post('/ai/reply', { emailThread: '', latestReply: replyContent });
+      if (res.data?.suggestion) {
+        setSuggestedReply(res.data.suggestion);
+      }
+    } catch (e) {
+      alert('Failed to generate reply suggestion.');
+      setSuggestingReplyFor(null);
+    }
+  };
+
+  const acceptSuggestedReply = () => {
+    setComposer(prev => ({ ...prev, body: suggestedReply, subject: `Re: ${company.companyName} Sponsorship` }));
+    
+    setSuggestingReplyFor(null);
+    setSuggestedReply('');
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+  };
+
   const handleScheduleFollowUp = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!followUpDate) return;
@@ -176,7 +233,26 @@ export default function CompanyProfilePage() {
       <div className="w-[400px] space-y-6">
         
         {/* Header / Identity */}
-        <div className="bg-white p-6 rounded-xl shadow-sm border border-gray-100">
+        
+            <div className="bg-gradient-to-r from-purple-50 to-indigo-50 p-6 rounded-xl shadow-sm border border-purple-100">
+              <div className="flex justify-between items-center mb-3">
+                <h3 className="font-bold text-purple-900 text-lg flex items-center gap-2">✨ AI Intelligence</h3>
+                {!company.aiSummary && (
+                  <button onClick={handleGenerateSummary} disabled={generatingSummary} className="text-xs bg-purple-600 text-white px-3 py-1 rounded hover:bg-purple-700 disabled:opacity-50">
+                    {generatingSummary ? 'Analyzing...' : 'Generate Summary'}
+                  </button>
+                )}
+              </div>
+              {company.aiSummary ? (
+                <div className="prose prose-sm prose-purple max-w-none text-gray-800 whitespace-pre-wrap">
+                  {company.aiSummary}
+                </div>
+              ) : (
+                <p className="text-sm text-purple-700/60 italic">No summary generated yet. Click generate to analyze company data.</p>
+              )}
+            </div>
+
+            <div className="bg-white p-6 rounded-xl shadow-sm border border-gray-100">
           <div className="flex items-center gap-4 mb-4">
             <Link href={user?.role === 'ADMIN' ? '/companies' : '/member'} className="text-gray-400 hover:text-gray-900">← Back</Link>
           </div>
@@ -409,6 +485,29 @@ export default function CompanyProfilePage() {
                     <p className="font-semibold text-green-900">{reply.sender}</p>
                     <p className="text-gray-800 whitespace-pre-wrap">{reply.content}</p>
                     <p className="text-xs text-gray-500 mt-1">{new Date(reply.createdAt).toLocaleString()}</p>
+                    <button onClick={() => handleSuggestReply(reply.id, reply.content)} className="mt-2 text-xs text-purple-600 font-medium hover:underline flex items-center gap-1">
+                      ✨ Suggest AI Reply
+                    </button>
+                    {suggestingReplyFor === reply.id && (
+                      <div className="mt-3 p-3 bg-white border border-purple-200 rounded text-sm">
+                        {suggestedReply ? (
+                          <>
+                            <textarea 
+                              className="w-full border-gray-200 rounded p-2 text-sm mb-2" 
+                              rows={4} 
+                              value={suggestedReply} 
+                              onChange={e => setSuggestedReply(e.target.value)}
+                            />
+                            <div className="flex gap-2">
+                              <button onClick={acceptSuggestedReply} className="bg-purple-600 text-white px-3 py-1 rounded text-xs">Accept & Reply</button>
+                              <button onClick={() => { setSuggestingReplyFor(null); setSuggestedReply(''); }} className="text-gray-500 px-3 py-1 text-xs hover:underline">Cancel</button>
+                            </div>
+                          </>
+                        ) : (
+                          <span className="text-purple-600 animate-pulse">Generating response...</span>
+                        )}
+                      </div>
+                    )}
                   </div>
                 )) : (
                   <p className="text-sm text-gray-500 italic">Awaiting sponsor reply...</p>
