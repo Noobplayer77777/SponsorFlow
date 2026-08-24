@@ -22,7 +22,7 @@ export const getTemplates = async (req: Request, res: Response): Promise<void> =
 export const getTemplateById = async (req: Request, res: Response): Promise<void> => {
   try {
     const template = await prisma.emailTemplate.findUnique({
-      where: { id: req.params.id },
+      where: { id: req.params.id as string },
     });
 
     if (!template) {
@@ -58,7 +58,7 @@ export const createTemplate = async (req: Request, res: Response): Promise<void>
 export const updateTemplate = async (req: Request, res: Response): Promise<void> => {
   try {
     const template = await prisma.emailTemplate.update({
-      where: { id: req.params.id },
+      where: { id: req.params.id as string },
       data: req.body,
     });
     res.json({ success: true, data: template });
@@ -74,7 +74,7 @@ export const updateTemplate = async (req: Request, res: Response): Promise<void>
 export const deleteTemplate = async (req: Request, res: Response): Promise<void> => {
   try {
     await prisma.emailTemplate.delete({
-      where: { id: req.params.id },
+      where: { id: req.params.id as string },
     });
     res.json({ success: true, message: 'Template deleted successfully' });
   } catch (error) {

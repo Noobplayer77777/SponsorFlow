@@ -45,7 +45,7 @@ export const getCompanies = async (req: Request, res: Response): Promise<void> =
 export const getCompanyById = async (req: Request, res: Response): Promise<void> => {
   try {
     const company = await prisma.company.findUnique({
-      where: { id: req.params.id },
+      where: { id: req.params.id as string },
       include: {
         assignment: {
           include: {
@@ -93,7 +93,7 @@ export const createCompany = async (req: Request, res: Response): Promise<void> 
 export const updateCompany = async (req: Request, res: Response): Promise<void> => {
   try {
     const company = await prisma.company.update({
-      where: { id: req.params.id },
+      where: { id: req.params.id as string },
       data: req.body,
     });
 
@@ -117,7 +117,7 @@ export const updateCompanyStatus = async (req: Request, res: Response): Promise<
     }
 
     const company = await prisma.company.update({
-      where: { id: req.params.id },
+      where: { id: req.params.id as string },
       data: { status: status as CompanyStatus },
     });
 
@@ -134,7 +134,7 @@ export const updateCompanyStatus = async (req: Request, res: Response): Promise<
 export const deleteCompany = async (req: Request, res: Response): Promise<void> => {
   try {
     await prisma.company.delete({
-      where: { id: req.params.id },
+      where: { id: req.params.id as string },
     });
 
     res.json({ success: true, message: 'Company deleted successfully' });

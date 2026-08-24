@@ -27,13 +27,23 @@ SponsorFlow/
 
 ## Installation & Setup
 
+### Google Cloud OAuth Setup
+1. Go to the [Google Cloud Console](https://console.cloud.google.com/).
+2. Create a new project (e.g., "SponsorFlow").
+3. Navigate to **APIs & Services** > **OAuth consent screen** and configure it for "External" or "Internal" depending on your Google Workspace.
+4. Navigate to **Credentials** and click **Create Credentials** > **OAuth client ID**.
+5. Select **Web application**.
+6. Under **Authorized JavaScript origins**, add `http://localhost:3000`.
+7. Under **Authorized redirect URIs**, add `http://localhost:3000`.
+8. Copy your **Client ID** and **Client Secret**. Add them to your `.env` file under `GOOGLE_CLIENT_ID`, `NEXT_PUBLIC_GOOGLE_CLIENT_ID`, and `GOOGLE_CLIENT_SECRET`.
+
 1. **Install dependencies**:
    ```bash
    npm run install:all
    ```
 
 2. **Configure environment variables**:
-   Copy `.env.example` to `.env` and fill in your local values (such as `DATABASE_URL`).
+   Copy `.env.example` to `.env` and fill in your local values. Include your newly created Google Client ID and generate a random `JWT_SECRET`.
    ```bash
    cp .env.example .env
    ```

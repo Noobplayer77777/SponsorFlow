@@ -9,9 +9,9 @@ export default function Home() {
           Sponsorship Outreach & Management Platform
         </p>
         <div className="mt-6 flex items-center justify-center gap-x-6">
-          <button className="rounded-md bg-blue-600 px-3.5 py-2.5 text-sm font-semibold text-white shadow-sm hover:bg-blue-500 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-blue-600">
+          <a href="/login" className="rounded-md bg-blue-600 px-3.5 py-2.5 text-sm font-semibold text-white shadow-sm hover:bg-blue-500 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-blue-600">
             Login with Google
-          </button>
+          </a>
         </div>
       </main>
     </div>
