@@ -20,7 +20,15 @@ export default function EditCompanyPage() {
     industry: '',
     location: '',
     status: '',
+    lockedById: '',
+    lockedAt: '',
   });
+  
+  const [composer, setComposer] = useState({
+    subject: '',
+    body: ''
+  });
+  const [sending, setSending] = useState(false);
 
   useEffect(() => {
     const fetchCompany = async () => {
@@ -35,6 +43,8 @@ export default function EditCompanyPage() {
           industry: data.industry || '',
           location: data.location || '',
           status: data.status || 'NOT_ASSIGNED',
+          lockedById: data.lockedById || '',
+          lockedAt: data.lockedAt || '',
         });
       } catch (error) {
         alert('Failed to load company');
@@ -71,8 +81,27 @@ export default function EditCompanyPage() {
     try {
       await api.post(`/companies/${params.id}/unlock`, {});
       alert('Lock released.');
+      window.location.reload();
     } catch (error: any) {
       alert('Failed to release lock');
+    }
+  };
+
+  const handleSendEmail = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setSending(true);
+    try {
+      await api.post('/gmail/send', {
+        companyId: params.id,
+        subject: composer.subject,
+        body: composer.body
+      });
+      alert('Email sent successfully via Gmail!');
+      window.location.reload();
+    } catch (error: any) {
+      alert(error.message || 'Failed to send email');
+    } finally {
+      setSending(false);
     }
   };
 
@@ -135,6 +164,30 @@ export default function EditCompanyPage() {
           Save Changes
         </button>
       </form>
+
+      {/* COMPOSER UI */}
+      {formData.lockedById === user?.id && formData.status === 'NOT_ASSIGNED' && (
+        <div className="mt-8 bg-white p-6 rounded-lg shadow space-y-4 border-2 border-orange-200">
+          <h2 className="text-xl font-bold text-orange-800">Draft First Email</h2>
+          <p className="text-sm text-gray-600">You hold the lock. Send this email to officially contact the sponsor.</p>
+          <form onSubmit={handleSendEmail} className="space-y-4">
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">Subject</label>
+              <input required type="text" className="w-full border p-2 rounded" 
+                value={composer.subject} onChange={e => setComposer({...composer, subject: e.target.value})} />
+            </div>
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">Message (HTML supported)</label>
+              <textarea required rows={8} className="w-full border p-2 rounded" 
+                value={composer.body} onChange={e => setComposer({...composer, body: e.target.value})} />
+            </div>
+            <button disabled={sending} type="submit" className="w-full bg-green-600 text-white p-2 rounded font-medium hover:bg-green-700 disabled:opacity-50">
+              {sending ? 'Sending via Gmail...' : 'Send Email'}
+            </button>
+          </form>
+        </div>
+      )}
+
     </div>
   );
 }

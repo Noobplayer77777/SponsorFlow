@@ -7,6 +7,7 @@ import assignmentRoutes from './routes/assignment.routes';
 import userRoutes from './routes/user.routes';
 import templateRoutes from './routes/template.routes';
 import authRoutes from './routes/auth.routes';
+import gmailRoutes from './routes/gmail.routes';
 import { requireAuth } from './middleware/auth.middleware';
 
 // Load environment variables
@@ -21,6 +22,7 @@ app.use(express.json());
 
 // Routes
 app.use('/api/auth', authRoutes);
+app.use('/api/gmail', gmailRoutes);
 app.use('/api/companies', requireAuth, companyRoutes);
 app.use('/api/assignments', requireAuth, assignmentRoutes);
 app.use('/api/users', requireAuth, userRoutes);

@@ -41,6 +41,12 @@ model User {
   googleId String? @unique
   role     Role    @default(MEMBER)
 
+  // Gmail Integration
+  gmailAddress      String?
+  gmailAccessToken  String?
+  gmailRefreshToken String?
+  gmailTokenExpiry  DateTime?
+
   assignments     Assignment[]
   sentEmails      Email[]
   lockedCompanies Company[]    @relation("CompanyLock")

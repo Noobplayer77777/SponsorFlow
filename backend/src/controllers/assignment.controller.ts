@@ -19,7 +19,7 @@ export const assignCompany = async (req: Request, res: Response): Promise<void> 
       });
 
       await tx.company.update({
-        where: { id: companyId },
+        where: { id: companyId as string },
         data: { status: 'ASSIGNED' },
       });
 
@@ -54,13 +54,13 @@ export const reassignCompany = async (req: Request, res: Response): Promise<void
     await prisma.$transaction(async (tx) => {
       // Upsert handles both assigning an unassigned company OR overwriting the existing owner
       await tx.assignment.upsert({
-        where: { companyId },
-        update: { userId },
-        create: { companyId, userId }
+        where: { companyId: companyId as string },
+        update: { userId: userId as string },
+        create: { companyId: companyId as string, userId: userId as string }
       });
       
       await tx.company.update({
-        where: { id: companyId },
+        where: { id: companyId as string },
         data: { status: 'ASSIGNED' }
       });
     });
@@ -78,9 +78,9 @@ export const unassignCompany = async (req: Request, res: Response): Promise<void
     const { companyId } = req.params;
 
     await prisma.$transaction(async (tx) => {
-      await tx.assignment.delete({ where: { companyId } });
+      await tx.assignment.delete({ where: { companyId: companyId as string } });
       await tx.company.update({
-        where: { id: companyId },
+        where: { id: companyId as string },
         data: { 
           status: 'NOT_ASSIGNED',
           lockedById: null, // Clear locks when unassigned
@@ -156,7 +156,7 @@ export const lockCompany = async (req: Request, res: Response): Promise<void> =>
 
     // 1. Verify Permission first
     const company = await prisma.company.findUnique({
-      where: { id: companyId },
+      where: { id: companyId as string },
       include: { assignment: true }
     });
 
@@ -183,7 +183,7 @@ export const lockCompany = async (req: Request, res: Response): Promise<void> =>
 
     const result = await prisma.company.updateMany({
       where: {
-        id: companyId,
+        id: companyId as string,
         // MUST match one of the following to acquire lock:
         OR: [
           { lockedById: null },               // Unlocked
@@ -223,7 +223,7 @@ export const unlockCompany = async (req: Request, res: Response): Promise<void> 
     // Only allow unlocking if the current user owns the lock (or is Admin)
     await prisma.company.updateMany({
       where: {
-        id: companyId,
+        id: companyId as string,
         ...(req.user!.role !== 'ADMIN' ? { lockedById: userId } : {})
       },
       data: {
