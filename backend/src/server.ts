@@ -23,19 +23,19 @@ const app = express();
 const PORT = process.env.PORT || 5000;
 
 // Security Middleware
-app.use(helmet());
+app.use(helmet({ crossOriginResourcePolicy: { policy: "cross-origin" } }));
 
 const limiter = rateLimit({
   windowMs: 15 * 60 * 1000, // 15 minutes
-  max: 200, // Limit each IP to 200 requests per windowMs
+  max: 1000, // Increased limit to 1000 since Next.js hot reload spams this
   message: 'Too many requests from this IP, please try again later.'
 });
-app.use('/api', limiter);
 
 // Middleware
 const allowedOrigins = process.env.FRONTEND_URL ? [process.env.FRONTEND_URL, 'http://localhost:3000'] : 'http://localhost:3000';
 app.use(cors({ origin: allowedOrigins }));
 app.use(express.json());
+app.use('/api', limiter);
 
 // Routes
 app.use('/api/auth', authRoutes);

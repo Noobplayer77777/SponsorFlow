@@ -5,11 +5,25 @@ import { api } from '../../../lib/api';
 import { useRouter, useParams } from 'next/navigation';
 import Link from 'next/link';
 import { useAuth } from '../../../contexts/AuthContext';
+import { NotificationBell } from '../../../components/NotificationBell';
+
+const STATUS_BADGES: Record<string, string> = {
+  'ASSIGNED': 'bg-blue-50 text-blue-700 ring-blue-700/10',
+  'EMAIL_DRAFTED': 'bg-amber-50 text-amber-700 ring-amber-700/10',
+  'EMAIL_SENT': 'bg-purple-50 text-purple-700 ring-purple-700/10',
+  'OPENED': 'bg-cyan-50 text-cyan-700 ring-cyan-700/10',
+  'REPLIED': 'bg-indigo-50 text-indigo-700 ring-indigo-700/10',
+  'INTERESTED': 'bg-emerald-50 text-emerald-700 ring-emerald-700/10',
+  'NEGOTIATING': 'bg-yellow-50 text-yellow-800 ring-yellow-800/10',
+  'CONFIRMED': 'bg-green-50 text-green-700 ring-green-600/20',
+  'REJECTED': 'bg-rose-50 text-rose-700 ring-rose-700/10',
+  'NOT_ASSIGNED': 'bg-gray-50 text-gray-600 ring-gray-500/10',
+};
 
 export default function CompanyProfilePage() {
   const params = useParams();
   const router = useRouter();
-  const { user } = useAuth();
+  const { user, logout } = useAuth();
   const [loading, setLoading] = useState(true);
   const [templates, setTemplates] = useState<any[]>([]);
   
@@ -52,12 +66,12 @@ export default function CompanyProfilePage() {
 
   const replacePlaceholders = (text: string) => {
     return text
-      .replace(/{{company}}/g, company.companyName || 'Company')
-      .replace(/{{contact}}/g, company.contactPerson || 'there')
+      .replace(/{{company}}/g, company?.companyName || 'Company')
+      .replace(/{{contact}}/g, company?.contactPerson || 'there')
       .replace(/{{event}}/g, 'our upcoming event')
       .replace(/{{member}}/g, user?.name || 'Sponsorship Team')
       .replace(/{{club}}/g, 'Hack Club')
-      .replace(/{{website}}/g, company.website || '');
+      .replace(/{{website}}/g, company?.website || '');
   };
 
   const handleTemplateSelect = (e: React.ChangeEvent<HTMLSelectElement>) => {
@@ -98,35 +112,51 @@ export default function CompanyProfilePage() {
     
     setSending(true);
     try {
-      const payload = new FormData();
-      payload.append('companyId', params.id as string);
-      payload.append('subject', composer.subject);
-      payload.append('body', composer.body);
-      
+      const formData = new FormData();
+      formData.append('companyId', params.id as string);
+      formData.append('subject', composer.subject);
+      formData.append('body', composer.body);
       if (attachments) {
-        for (let i = 0; i < attachments.length; i++) {
-          payload.append('attachments', attachments[i]);
-        }
+        Array.from(attachments).forEach(file => {
+          formData.append('attachments', file);
+        });
       }
 
-      const token = localStorage.getItem('token');
-      const res = await fetch(`http://localhost:5000/api/gmail/send`, {
-        method: 'POST',
-        headers: { ...(token ? { Authorization: `Bearer ${token}` } : {}) },
-        body: payload
-      });
-
-      if (!res.ok) {
-         const errorData = await res.json().catch(() => ({}));
-         throw new Error(errorData.message || 'Failed to send email');
-      }
-
-      alert('Email sent successfully via Gmail!');
+      await api.post('/gmail/send', formData, true);
+      alert('Email sent successfully!');
       window.location.reload();
     } catch (error: any) {
       alert(error.message || 'Failed to send email');
     } finally {
       setSending(false);
+    }
+  };
+
+  const handleGenerateIntro = async () => {
+    setGeneratingIntro(true);
+    try {
+      const res = await api.post('/ai/personalize', { companyId: params.id });
+      setComposer(prev => ({
+        ...prev,
+        body: res.data.sentence + '\n\n' + prev.body
+      }));
+    } catch (error: any) {
+      alert(error.message || 'Failed to generate intro');
+    } finally {
+      setGeneratingIntro(false);
+    }
+  };
+
+  const handleGenerateSummary = async () => {
+    setGeneratingSummary(true);
+    try {
+      await api.post('/ai/summary', { companyId: params.id });
+      const res = await api.get(`/companies/${params.id}`);
+      setCompany(res.data);
+    } catch (error: any) {
+      alert(error.message || 'Failed to generate summary');
+    } finally {
+      setGeneratingSummary(false);
     }
   };
 
@@ -138,63 +168,32 @@ export default function CompanyProfilePage() {
     try {
       await api.post(`/companies/${params.id}/notes`, { content: newNote });
       setNewNote('');
-      const companyRes = await api.get(`/companies/${params.id}`);
-      setCompany(companyRes.data);
-    } catch (error) {
-      alert('Failed to add note');
+      const res = await api.get(`/companies/${params.id}`);
+      setCompany(res.data);
+    } catch (error: any) {
+      alert(error.message || 'Failed to add note');
     } finally {
       setSubmittingNote(false);
     }
   };
 
-    const handleGenerateIntro = async () => {
-    if (!company) return;
-    setGeneratingIntro(true);
-    try {
-      const res = await api.post('/ai/personalize', { companyId: company.id });
-      if (res.data?.sentence) {
-        setComposer(prev => ({ ...prev, body: prev.body ? res.data.sentence + '\n\n' + prev.body : res.data.sentence }));
-      }
-    } catch (e) {
-      alert('Failed to generate intro.');
-    } finally {
-      setGeneratingIntro(false);
-    }
-  };
-
-  const handleGenerateSummary = async () => {
-    if (!company) return;
-    setGeneratingSummary(true);
-    try {
-      const res = await api.post('/ai/summary', { companyId: company.id });
-      if (res.data?.summary) {
-        setCompany({ ...company, aiSummary: res.data.summary });
-      }
-    } catch (e) {
-      alert('Failed to generate summary.');
-    } finally {
-      setGeneratingSummary(false);
-    }
-  };
-
-  const handleSuggestReply = async (replyId: string, replyContent: string) => {
+  const handleSuggestReply = async (replyId: string, content: string) => {
     setSuggestingReplyFor(replyId);
     setSuggestedReply('');
     try {
-      // Find earlier context if possible (just pass thread if available, or just the content)
-      const res = await api.post('/ai/reply', { emailThread: '', latestReply: replyContent });
-      if (res.data?.suggestion) {
-        setSuggestedReply(res.data.suggestion);
-      }
-    } catch (e) {
-      alert('Failed to generate reply suggestion.');
+      const res = await api.post('/ai/reply', { emailThread: '', latestReply: content });
+      setSuggestedReply(res.data.suggestion);
+    } catch (error: any) {
+      alert(error.message || 'Failed to generate suggestion');
       setSuggestingReplyFor(null);
     }
   };
 
   const acceptSuggestedReply = () => {
-    setComposer(prev => ({ ...prev, body: suggestedReply, subject: `Re: ${company.companyName} Sponsorship` }));
-    
+    setComposer({
+      subject: `Re: Sponsorship with ${company?.companyName}`,
+      body: suggestedReply
+    });
     setSuggestingReplyFor(null);
     setSuggestedReply('');
     window.scrollTo({ top: 0, behavior: 'smooth' });
@@ -222,331 +221,404 @@ export default function CompanyProfilePage() {
     }
   };
 
-  if (loading) return <div className="p-8 text-center text-gray-500">Loading Profile...</div>;
+  if (loading) {
+    return (
+      <div className="min-h-screen bg-gray-50/50 pb-12 animate-pulse">
+        <header className="bg-white border-b border-gray-200 h-16"></header>
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 pt-8 flex gap-6">
+          <div className="w-[400px] space-y-6 shrink-0">
+            <div className="h-64 bg-gray-200 rounded-xl"></div>
+            <div className="h-48 bg-gray-200 rounded-xl"></div>
+          </div>
+          <div className="flex-1 space-y-6">
+            <div className="h-[600px] bg-gray-200 rounded-xl"></div>
+          </div>
+        </div>
+      </div>
+    );
+  }
 
-  const showComposer = (company.lockedById === user?.id && company.status === 'NOT_ASSIGNED') || company.status === 'ASSIGNED';
+  const showComposer = (company?.lockedById === user?.id && company?.status === 'NOT_ASSIGNED') || company?.status === 'ASSIGNED' || company?.status === 'REPLIED' || company?.status === 'OPENED' || company?.status === 'INTERESTED';
 
   return (
-    <div className="p-8 max-w-7xl mx-auto flex gap-6 bg-gray-50 min-h-screen">
-      
-      {/* LEFT COL: PROFILE DATA */}
-      <div className="w-[400px] space-y-6">
-        
-        {/* Header / Identity */}
-        
-            <div className="bg-gradient-to-r from-purple-50 to-indigo-50 p-6 rounded-xl shadow-sm border border-purple-100">
-              <div className="flex justify-between items-center mb-3">
-                <h3 className="font-bold text-purple-900 text-lg flex items-center gap-2">✨ AI Intelligence</h3>
-                {!company.aiSummary && (
-                  <button onClick={handleGenerateSummary} disabled={generatingSummary} className="text-xs bg-purple-600 text-white px-3 py-1 rounded hover:bg-purple-700 disabled:opacity-50">
-                    {generatingSummary ? 'Analyzing...' : 'Generate Summary'}
-                  </button>
-                )}
+    <div className="min-h-screen bg-gray-50/50 pb-12">
+      {/* Top Navigation */}
+      <header className="bg-white border-b border-gray-200 sticky top-0 z-10">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 h-16 flex items-center justify-between">
+          <div className="flex items-center gap-6">
+            <Link href={user?.role === 'ADMIN' ? '/admin' : '/member'} className="flex items-center gap-2 group">
+              <div className="w-8 h-8 bg-indigo-600 rounded-lg flex items-center justify-center shadow-sm group-hover:bg-indigo-700 transition-colors">
+                <span className="text-white font-bold text-sm">SF</span>
               </div>
-              {company.aiSummary ? (
-                <div className="prose prose-sm prose-purple max-w-none text-gray-800 whitespace-pre-wrap">
+              <span className="font-semibold text-gray-900">SponsorFlow</span>
+            </Link>
+          </div>
+          
+          <div className="flex items-center gap-4">
+            <Link 
+              href={user?.role === 'ADMIN' ? '/companies' : '/member'} 
+              className="text-sm font-medium text-gray-500 hover:text-gray-900 transition-colors flex items-center gap-2 mr-4"
+            >
+              <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 19l-7-7m0 0l7-7m-7 7h18" />
+              </svg>
+              Back to {user?.role === 'ADMIN' ? 'Directory' : 'Dashboard'}
+            </Link>
+            <NotificationBell />
+            <div className="h-5 w-px bg-gray-200 mx-2"></div>
+            <div className="flex items-center gap-3">
+              <div className="flex flex-col items-end">
+                <span className="text-sm font-medium text-gray-900">{user?.name}</span>
+                <span className="text-xs text-gray-500">{user?.role === 'ADMIN' ? 'Finance Lead' : 'Member'}</span>
+              </div>
+              <button 
+                onClick={logout} 
+                className="p-2 text-gray-400 hover:text-gray-600 hover:bg-gray-100 rounded-full transition-colors"
+                title="Sign out"
+              >
+                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1" /></svg>
+              </button>
+            </div>
+          </div>
+        </div>
+      </header>
+
+      <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 pt-8 flex flex-col md:flex-row gap-8">
+        
+        {/* LEFT COL: PROFILE DATA */}
+        <div className="w-full md:w-[380px] shrink-0 space-y-6">
+          
+          {/* Identity */}
+          <div className="bg-white p-6 rounded-xl shadow-sm ring-1 ring-gray-900/5">
+            <h1 className="text-2xl font-bold text-gray-900 mb-1">{company?.companyName}</h1>
+            <p className="text-sm text-gray-500 mb-5">{company?.industry || 'Unknown Industry'} • {company?.location || 'Unknown Location'}</p>
+            
+            <div className="flex flex-wrap gap-2 mb-6">
+              <span className={`inline-flex items-center rounded-full px-2.5 py-1 text-xs font-semibold ring-1 ring-inset uppercase tracking-wider ${STATUS_BADGES[company?.status || 'NOT_ASSIGNED']}`}>
+                {company?.status ? company.status.replace(/_/g, ' ') : 'NOT ASSIGNED'}
+              </span>
+            </div>
+
+            <dl className="text-sm space-y-4 text-gray-600">
+              <div className="flex items-start gap-3">
+                <dt className="font-medium text-gray-900 w-20 shrink-0">Contact</dt>
+                <dd>{company?.contactPerson || '-'} {company?.designation ? <span className="text-gray-400">({company.designation})</span> : ''}</dd>
+              </div>
+              <div className="flex items-start gap-3">
+                <dt className="font-medium text-gray-900 w-20 shrink-0">Email</dt>
+                <dd className="truncate">
+                  {company?.email ? <a href={`mailto:${company.email}`} className="text-indigo-600 hover:underline">{company.email}</a> : '-'}
+                </dd>
+              </div>
+              <div className="flex items-start gap-3">
+                <dt className="font-medium text-gray-900 w-20 shrink-0">Phone</dt>
+                <dd>{company?.phoneNumber || '-'}</dd>
+              </div>
+              <div className="flex items-start gap-3">
+                <dt className="font-medium text-gray-900 w-20 shrink-0">Links</dt>
+                <dd className="flex gap-3">
+                  {company?.website ? <a href={company.website} target="_blank" className="text-indigo-600 hover:underline">Website</a> : <span className="text-gray-400">No Web</span>}
+                  <span className="text-gray-300">|</span>
+                  {company?.linkedin ? <a href={company.linkedin} target="_blank" className="text-indigo-600 hover:underline">LinkedIn</a> : <span className="text-gray-400">No LI</span>}
+                </dd>
+              </div>
+            </dl>
+          </div>
+
+          {/* AI Intelligence */}
+          <div className="bg-gradient-to-br from-indigo-50 to-purple-50 p-6 rounded-xl shadow-sm ring-1 ring-inset ring-indigo-600/10 relative overflow-hidden">
+            <div className="absolute top-0 right-0 p-4 opacity-10">
+              <svg className="w-16 h-16 text-indigo-600" fill="currentColor" viewBox="0 0 24 24"><path d="M19.92 12.38a1 1 0 00-.22-1.09l-7-7a.996.996 0 10-1.41 1.41l5.3 5.3H4v2h12.59l-5.3 5.3a.996.996 0 000 1.41c.19.2.44.3.7.3s.51-.1.71-.29l7-7c.09-.09.16-.21.21-.33z"/></svg>
+            </div>
+            <div className="flex justify-between items-center mb-4 relative z-10">
+              <h3 className="font-semibold text-indigo-900 text-sm flex items-center gap-2">
+                <svg className="w-4 h-4 text-indigo-600" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 10V3L4 14h7v7l9-11h-7z" /></svg>
+                AI Intelligence
+              </h3>
+              {!company?.aiSummary && (
+                <button 
+                  onClick={handleGenerateSummary} 
+                  disabled={generatingSummary} 
+                  className="text-xs bg-white text-indigo-700 px-3 py-1.5 rounded-md font-medium shadow-sm ring-1 ring-inset ring-indigo-600/20 hover:bg-indigo-50 disabled:opacity-50 transition-colors"
+                >
+                  {generatingSummary ? 'Analyzing...' : 'Generate Profile'}
+                </button>
+              )}
+            </div>
+            <div className="relative z-10">
+              {company?.aiSummary ? (
+                <div className="prose prose-sm prose-indigo max-w-none text-indigo-950/80 whitespace-pre-wrap leading-relaxed">
                   {company.aiSummary}
                 </div>
               ) : (
-                <p className="text-sm text-purple-700/60 italic">No summary generated yet. Click generate to analyze company data.</p>
+                <p className="text-sm text-indigo-900/50 italic">No summary generated yet. Click generate to analyze company footprint.</p>
               )}
             </div>
-
-            <div className="bg-white p-6 rounded-xl shadow-sm border border-gray-100">
-          <div className="flex items-center gap-4 mb-4">
-            <Link href={user?.role === 'ADMIN' ? '/companies' : '/member'} className="text-gray-400 hover:text-gray-900">← Back</Link>
-          </div>
-          <h1 className="text-2xl font-bold text-gray-900 mb-1">{company.companyName}</h1>
-          <p className="text-sm text-gray-500 mb-4">{company.industry || 'Unknown Industry'} • {company.location || 'Unknown Location'}</p>
-          
-          <div className="flex flex-wrap gap-2 mb-4">
-            <span className="bg-blue-100 text-blue-800 px-3 py-1 rounded-full text-xs font-bold uppercase tracking-wide">
-              {company.status.replace('_', ' ')}
-            </span>
           </div>
 
-          <div className="text-sm space-y-3 text-gray-700">
-            <div className="flex items-center gap-2">
-              <span className="font-semibold text-gray-900 w-24">Contact:</span> 
-              <span>{company.contactPerson || '-'} ({company.designation || '-'})</span>
-            </div>
-            <div className="flex items-center gap-2">
-              <span className="font-semibold text-gray-900 w-24">Email:</span> 
-              <span className="text-blue-600 truncate">{company.email || '-'}</span>
-            </div>
-            <div className="flex items-center gap-2">
-              <span className="font-semibold text-gray-900 w-24">Phone:</span> 
-              <span>{company.phoneNumber || '-'}</span>
-            </div>
-            <div className="flex items-center gap-2">
-              <span className="font-semibold text-gray-900 w-24">Website:</span> 
-              {company.website ? <a href={company.website} target="_blank" className="text-blue-600 hover:underline">Link</a> : '-'}
-            </div>
-            <div className="flex items-center gap-2">
-              <span className="font-semibold text-gray-900 w-24">LinkedIn:</span> 
-              {company.linkedin ? <a href={company.linkedin} target="_blank" className="text-blue-600 hover:underline">Link</a> : '-'}
-            </div>
-          </div>
-        </div>
-
-        {/* Assignments & Logistics */}
-        <div className="bg-white p-6 rounded-xl shadow-sm border border-gray-100">
-          <h3 className="font-bold text-gray-900 mb-4 text-lg">Logistics</h3>
-          <div className="text-sm space-y-3">
-            <div className="flex items-center justify-between">
-              <span className="text-gray-500">Assigned Member</span>
-              <span className="font-medium text-gray-900">{company.assignment?.user?.name || 'Unassigned'}</span>
-            </div>
-            <div className="flex items-center justify-between">
-              <span className="text-gray-500">Follow-up Due</span>
-              <span className="font-medium text-red-600">{company.followUpDate ? new Date(company.followUpDate).toLocaleDateString() : 'Not Set'}</span>
-            </div>
-            <div className="flex items-center justify-between">
-              <span className="text-gray-500">Last Activity</span>
-              <span className="font-medium text-gray-900">{new Date(company.updatedAt).toLocaleDateString()}</span>
-            </div>
-          </div>
-        </div>
-
-        {/* Attachments Placeholder */}
-        <div className="bg-white p-6 rounded-xl shadow-sm border border-gray-100 opacity-60">
-          <h3 className="font-bold text-gray-900 mb-2 text-lg">Attachments</h3>
-          <p className="text-xs text-gray-500 mb-3">Stored sponsorship documents and assets</p>
-          <div className="text-sm bg-gray-50 p-3 rounded border border-dashed border-gray-300 text-center text-gray-400">
-            No attachments yet
-          </div>
-        </div>
-
-      </div>
-
-      {/* RIGHT COL: WORKSPACE */}
-      <div className="flex-1 space-y-6">
-        
-        {/* Composer / Outreach Panel */}
-        <div className="bg-white p-6 rounded-xl shadow-sm border border-gray-100">
-          <div className="flex justify-between items-center mb-6 border-b pb-4">
-            <div>
-              <h2 className="text-xl font-bold text-gray-900">Email Outreach</h2>
-              <p className="text-xs text-gray-500 mt-1">
-                {company.status === 'EMAIL_SENT' ? 'Already contacted' : (company.lockedById ? 'Currently Locked' : 'Unlocked')}
-              </p>
-            </div>
-            <div className="flex gap-2">
-              {company.status === 'NOT_ASSIGNED' && company.lockedById !== user?.id && (
-                <button type="button" onClick={handleLock} className="bg-orange-500 text-white px-4 py-2 rounded-lg shadow-sm hover:bg-orange-600 text-sm font-medium transition">
-                  Acquire Lock & Draft
+          {/* Logistics */}
+          <div className="bg-white p-6 rounded-xl shadow-sm ring-1 ring-gray-900/5">
+            <h3 className="font-semibold text-gray-900 mb-4 text-sm">Logistics & Access</h3>
+            <dl className="text-sm space-y-4">
+              <div className="flex items-center justify-between">
+                <dt className="text-gray-500">Assigned Member</dt>
+                <dd className="font-medium text-gray-900">{company?.assignment?.user?.name || 'Unassigned'}</dd>
+              </div>
+              <div className="flex items-center justify-between">
+                <dt className="text-gray-500">Status</dt>
+                <dd>
+                  {company?.lockedById ? (
+                    <span className="inline-flex items-center gap-1.5 text-amber-600 font-medium bg-amber-50 px-2 py-1 rounded-md">
+                      <svg className="w-3.5 h-3.5" fill="currentColor" viewBox="0 0 20 20"><path fillRule="evenodd" d="M5 9V7a5 5 0 0110 0v2a2 2 0 012 2v5a2 2 0 01-2 2H5a2 2 0 01-2-2v-5a2 2 0 012-2zm8-2v2H7V7a3 3 0 016 0z" clipRule="evenodd" /></svg>
+                      Locked for Drafting
+                    </span>
+                  ) : (
+                    <span className="inline-flex items-center gap-1.5 text-emerald-600 font-medium bg-emerald-50 px-2 py-1 rounded-md">
+                      <svg className="w-3.5 h-3.5" fill="currentColor" viewBox="0 0 20 20"><path d="M10 2a5 5 0 00-5 5v2a2 2 0 00-2 2v5a2 2 0 002 2h10a2 2 0 002-2v-5a2 2 0 00-2-2H7V7a3 3 0 015.905-.75 1 1 0 001.937-.5A5.002 5.002 0 0010 2z" /></svg>
+                      Unlocked
+                    </span>
+                  )}
+                </dd>
+              </div>
+            </dl>
+            
+            <div className="mt-5 pt-5 border-t border-gray-100 flex gap-3">
+              {!company?.lockedById && company?.status === 'NOT_ASSIGNED' && (
+                <button onClick={handleLock} className="flex-1 bg-indigo-50 text-indigo-700 py-2 rounded-md font-medium text-sm hover:bg-indigo-100 transition-colors ring-1 ring-inset ring-indigo-600/20 shadow-sm">
+                  Acquire Lock
                 </button>
               )}
-              {company.lockedById === user?.id && (
-                <button type="button" onClick={handleUnlock} className="bg-gray-100 text-gray-700 px-4 py-2 rounded-lg shadow-sm border hover:bg-gray-200 text-sm font-medium transition">
+              {company?.lockedById === user?.id && company?.status === 'NOT_ASSIGNED' && (
+                <button onClick={handleUnlock} className="flex-1 bg-white text-gray-700 py-2 rounded-md font-medium text-sm hover:bg-gray-50 transition-colors ring-1 ring-inset ring-gray-300 shadow-sm">
                   Release Lock
                 </button>
               )}
             </div>
           </div>
-
-          {showComposer ? (
-            <div className="bg-blue-50/50 p-6 rounded-lg border border-blue-100">
-              <div className="flex justify-between items-center mb-4">
-                <h3 className="text-lg font-bold text-blue-900">Draft Initial Email</h3>
-                <button 
-                  type="button"
-                  onClick={() => setPreviewMode(!previewMode)}
-                  className="text-xs bg-white px-3 py-1 rounded shadow-sm border border-gray-200 hover:bg-gray-50 font-medium"
-                >
-                  {previewMode ? 'Edit Mode' : 'Preview Mode'}
-                </button>
-              </div>
-              
-              <form onSubmit={handleSendEmail} className="space-y-4">
-                {!previewMode && (
-                  <div>
-                    <label className="block text-xs font-semibold text-gray-600 uppercase tracking-wide mb-1">Load Template</label>
-                    <select onChange={handleTemplateSelect} className="w-full border-gray-300 border p-2.5 rounded-lg bg-white text-sm shadow-sm focus:ring-blue-500 focus:border-blue-500">
-                      <option value="">-- Start from scratch or select a template --</option>
-                      {templates.map(t => (
-                        <option key={t.id} value={t.id}>{t.name}</option>
-                      ))}
-                    </select>
-                  </div>
-                )}
-
-                <div>
-                  <label className="block text-xs font-semibold text-gray-600 uppercase tracking-wide mb-1">To</label>
-                  <input disabled type="text" className="w-full border p-2.5 rounded-lg bg-gray-100 text-gray-600 text-sm border-gray-300" 
-                    value={company.email || 'No email provided for this company'} />
-                </div>
-
-                <div>
-                  <label className="block text-xs font-semibold text-gray-600 uppercase tracking-wide mb-1">Subject</label>
-                  {previewMode ? (
-                    <div className="p-3 border border-gray-200 rounded-lg bg-white text-sm shadow-sm">{composer.subject}</div>
-                  ) : (
-                    <input required type="text" className="w-full border border-gray-300 p-2.5 rounded-lg text-sm shadow-sm focus:ring-blue-500 focus:border-blue-500" 
-                      value={composer.subject} onChange={e => setComposer({...composer, subject: e.target.value})} />
-                  )}
-                </div>
-
-                <div>
-                  <label className="block text-xs font-semibold text-gray-600 uppercase tracking-wide mb-1">Message (HTML)</label>
-                  {previewMode ? (
-                    <div 
-                      className="p-4 border border-gray-200 rounded-lg bg-white min-h-[300px] prose prose-sm max-w-none shadow-sm"
-                      dangerouslySetInnerHTML={{ __html: composer.body }} 
-                    />
-                  ) : (
-                    <textarea required rows={12} className="w-full border border-gray-300 p-3 rounded-lg font-sans text-sm shadow-sm focus:ring-blue-500 focus:border-blue-500" 
-                      value={composer.body} onChange={e => setComposer({...composer, body: e.target.value})} />
-                  )}
-                </div>
-
-                {!previewMode && (
-                  <div>
-                    <label className="block text-xs font-semibold text-gray-600 uppercase tracking-wide mb-1">Attachments</label>
-                    <input 
-                      type="file" 
-                      multiple 
-                      ref={fileInputRef}
-                      onChange={(e) => setAttachments(e.target.files)}
-                      className="w-full border border-gray-300 p-2 rounded-lg text-sm bg-white shadow-sm file:mr-4 file:py-2 file:px-4 file:rounded-full file:border-0 file:text-sm file:font-semibold file:bg-blue-50 file:text-blue-700 hover:file:bg-blue-100" 
-                    />
-                  </div>
-                )}
-
-                <div className="pt-4 flex gap-2">
-                  <button disabled={sending || !company.email} type="submit" className="flex-1 bg-blue-600 text-white py-3 rounded-lg font-bold hover:bg-blue-700 disabled:opacity-50 flex items-center justify-center gap-2 shadow-sm transition">
-                    {sending ? 'Sending via Gmail API...' : 'Send Initial Outreach Email'}
-                  </button>
-                </div>
-              </form>
-            </div>
-          ) : (
-             <div className="text-center p-8 bg-gray-50 rounded-lg border border-dashed border-gray-300">
-               <p className="text-gray-500 text-sm">No active composer session.</p>
-               <p className="text-gray-400 text-xs mt-1">Acquire the lock or assign the company to begin drafting.</p>
-             </div>
-          )}
         </div>
 
-        {/* Timelines and Placeholders */}
-        <div className="grid grid-cols-2 gap-6">
-          <div className="bg-white p-6 rounded-xl shadow-sm border border-gray-100">
-            <h3 className="font-bold text-gray-900 mb-4 text-lg border-b pb-2">Activity Timeline</h3>
-            <div className="space-y-4 relative pl-4 border-l-2 border-gray-200 text-sm text-gray-600 max-h-96 overflow-y-auto">
-              {company.activities?.length > 0 ? company.activities.map((act: any) => (
-                <div key={act.id} className="relative">
-                  <div className="absolute -left-[21px] top-1 w-3 h-3 bg-blue-500 rounded-full border-2 border-white"></div>
-                  <p className="font-medium text-gray-900">{act.type.replace(/_/g, ' ')}</p>
-                  <p className="text-gray-700">{act.description}</p>
-                  <p className="text-xs text-gray-500 mt-0.5">{new Date(act.createdAt).toLocaleString()} {act.user ? `· ${act.user.name}` : ''}</p>
+        {/* RIGHT COL: WORKSPACE */}
+        <div className="flex-1 space-y-6 min-w-0">
+          
+          {/* Composer */}
+          <div className="bg-white rounded-xl shadow-sm ring-1 ring-gray-900/5 flex flex-col">
+            <div className="px-6 py-4 border-b border-gray-100 flex items-center justify-between bg-gray-50/50 rounded-t-xl">
+              <h2 className="text-base font-semibold text-gray-900">Outreach Workspace</h2>
+              {showComposer && (
+                <div className="flex items-center gap-3">
+                  <select onChange={handleTemplateSelect} defaultValue="" className="text-sm rounded-md border-0 py-1.5 pl-3 pr-8 text-gray-900 ring-1 ring-inset ring-gray-300 focus:ring-2 focus:ring-indigo-600 shadow-sm">
+                    <option value="" disabled>Load Template...</option>
+                    {templates.map(t => <option key={t.id} value={t.id}>{t.name}</option>)}
+                  </select>
                 </div>
-              )) : (
-                <div className="relative">
-                  <div className="absolute -left-[21px] top-1 w-3 h-3 bg-gray-300 rounded-full border-2 border-white"></div>
-                  <p className="font-medium text-gray-900">Company Created</p>
-                  <p className="text-xs">{new Date(company.createdAt).toLocaleString()}</p>
+              )}
+            </div>
+
+            <div className="p-6">
+              {showComposer ? (
+                <form onSubmit={handleSendEmail} className="space-y-4">
+                  <div>
+                    <label className="block text-xs font-medium text-gray-500 mb-1">Subject</label>
+                    <input 
+                      required 
+                      type="text" 
+                      value={composer.subject}
+                      onChange={(e) => setComposer({...composer, subject: e.target.value})}
+                      className="block w-full rounded-md border-0 py-2 px-3 text-gray-900 shadow-sm ring-1 ring-inset ring-gray-300 focus:ring-2 focus:ring-inset focus:ring-indigo-600 sm:text-sm font-medium"
+                      placeholder="e.g. Sponsorship Opportunity with Hack Club"
+                    />
+                  </div>
+
+                  <div>
+                    <div className="flex justify-between items-center mb-1">
+                      <label className="block text-xs font-medium text-gray-500">Message</label>
+                      <button 
+                        type="button"
+                        onClick={handleGenerateIntro}
+                        disabled={generatingIntro || !company?.aiSummary}
+                        className="text-xs text-indigo-600 font-medium hover:text-indigo-800 disabled:opacity-50 disabled:hover:text-indigo-600 transition-colors flex items-center gap-1"
+                        title={!company?.aiSummary ? "Generate an AI Profile first" : "Generate intro paragraph based on profile"}
+                      >
+                        <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 10V3L4 14h7v7l9-11h-7z" /></svg>
+                        {generatingIntro ? 'Generating...' : 'Magic Intro'}
+                      </button>
+                    </div>
+                    <div className="relative group">
+                      {previewMode ? (
+                        <div className="w-full h-72 border border-gray-200 rounded-md p-4 text-sm bg-gray-50 overflow-y-auto whitespace-pre-wrap text-gray-800 shadow-inner">
+                          {composer.body}
+                        </div>
+                      ) : (
+                        <textarea 
+                          required 
+                          value={composer.body}
+                          onChange={(e) => setComposer({...composer, body: e.target.value})}
+                          className="block w-full h-72 rounded-md border-0 py-3 px-3 text-gray-900 shadow-sm ring-1 ring-inset ring-gray-300 focus:ring-2 focus:ring-inset focus:ring-indigo-600 sm:text-sm resize-y font-mono"
+                          placeholder="Write your email here..."
+                        />
+                      )}
+                    </div>
+                  </div>
+
+                  <div className="flex items-center gap-4">
+                    <div className="flex-1">
+                      <label className="block text-xs font-medium text-gray-500 mb-1">Attachments (Optional)</label>
+                      <input 
+                        type="file" 
+                        multiple 
+                        onChange={(e) => setAttachments(e.target.files)}
+                        className="block w-full text-sm text-gray-500 file:mr-4 file:py-1.5 file:px-4 file:rounded-md file:border-0 file:text-sm file:font-semibold file:bg-indigo-50 file:text-indigo-700 hover:file:bg-indigo-100 transition-colors cursor-pointer" 
+                      />
+                    </div>
+                  </div>
+
+                  <div className="pt-4 flex items-center gap-3 border-t border-gray-100">
+                    <button 
+                      type="button"
+                      onClick={() => setPreviewMode(!previewMode)}
+                      className="px-4 py-2 bg-white text-gray-700 rounded-md font-medium text-sm hover:bg-gray-50 ring-1 ring-inset ring-gray-300 transition-colors shadow-sm"
+                    >
+                      {previewMode ? 'Edit Mode' : 'Preview Format'}
+                    </button>
+                    <button 
+                      disabled={sending || !company?.email} 
+                      type="submit" 
+                      className="flex-1 bg-indigo-600 text-white py-2 rounded-md font-medium text-sm hover:bg-indigo-500 disabled:opacity-50 flex items-center justify-center gap-2 shadow-sm transition-colors"
+                    >
+                      {sending ? (
+                        <>
+                          <svg className="animate-spin h-4 w-4 text-white" viewBox="0 0 24 24" fill="none"><circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle><path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path></svg>
+                          Sending via Gmail API...
+                        </>
+                      ) : (
+                        `Send Email to ${company?.email || 'Missing Email'}`
+                      )}
+                    </button>
+                  </div>
+                </form>
+              ) : (
+                <div className="text-center py-12 px-6 rounded-lg bg-gray-50 border border-dashed border-gray-300">
+                  <svg className="mx-auto h-12 w-12 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1} d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" />
+                  </svg>
+                  <h3 className="mt-4 text-sm font-semibold text-gray-900">Workspace Locked</h3>
+                  <p className="mt-2 text-sm text-gray-500 max-w-sm mx-auto">
+                    You cannot compose emails here. Either this target is unassigned, or another member holds the draft lock.
+                  </p>
                 </div>
               )}
             </div>
           </div>
 
-          <div className="space-y-6 flex flex-col">
-            <div className="bg-white p-6 rounded-xl shadow-sm border border-gray-100 flex-1 flex flex-col">
-              <h3 className="font-bold text-gray-900 mb-2 text-lg border-b pb-2">Internal Notes</h3>
-              
-              <div className="flex-1 max-h-48 overflow-y-auto space-y-3 mb-4">
-                {company.notes?.length > 0 ? company.notes.map((note: any) => (
-                  <div key={note.id} className="bg-yellow-50 p-3 rounded text-sm border border-yellow-100">
-                    <p className="text-gray-800">{note.content}</p>
-                    <p className="text-xs text-gray-500 mt-1">{note.author?.name} · {new Date(note.createdAt).toLocaleString()}</p>
-                  </div>
-                )) : (
-                  <p className="text-sm text-gray-500 italic">No notes added yet.</p>
-                )}
-              </div>
-
-              <form onSubmit={handleAddNote} className="mt-auto pt-2 border-t">
-                <input 
-                  type="text" 
-                  value={newNote}
-                  onChange={e => setNewNote(e.target.value)}
-                  placeholder="Type a note and press enter..."
-                  className="w-full border p-2 rounded text-sm shadow-inner bg-gray-50 focus:bg-white"
-                  disabled={submittingNote}
-                />
-              </form>
-            </div>
+          {/* Bottom Grid: Timelines & Notes */}
+          <div className="grid grid-cols-1 xl:grid-cols-2 gap-6">
             
-            <div className="bg-white p-6 rounded-xl shadow-sm border border-gray-100">
-              <h3 className="font-bold text-gray-900 mb-2 text-lg border-b pb-2">Replies Received</h3>
-              <div className="max-h-48 overflow-y-auto space-y-3 mb-4">
-                {company.replies?.length > 0 ? company.replies.map((reply: any) => (
-                  <div key={reply.id} className="bg-green-50 p-3 rounded text-sm border border-green-100">
-                    <p className="font-semibold text-green-900">{reply.sender}</p>
-                    <p className="text-gray-800 whitespace-pre-wrap">{reply.content}</p>
-                    <p className="text-xs text-gray-500 mt-1">{new Date(reply.createdAt).toLocaleString()}</p>
-                    <button onClick={() => handleSuggestReply(reply.id, reply.content)} className="mt-2 text-xs text-purple-600 font-medium hover:underline flex items-center gap-1">
-                      ✨ Suggest AI Reply
-                    </button>
-                    {suggestingReplyFor === reply.id && (
-                      <div className="mt-3 p-3 bg-white border border-purple-200 rounded text-sm">
-                        {suggestedReply ? (
-                          <>
-                            <textarea 
-                              className="w-full border-gray-200 rounded p-2 text-sm mb-2" 
-                              rows={4} 
-                              value={suggestedReply} 
-                              onChange={e => setSuggestedReply(e.target.value)}
-                            />
-                            <div className="flex gap-2">
-                              <button onClick={acceptSuggestedReply} className="bg-purple-600 text-white px-3 py-1 rounded text-xs">Accept & Reply</button>
-                              <button onClick={() => { setSuggestingReplyFor(null); setSuggestedReply(''); }} className="text-gray-500 px-3 py-1 text-xs hover:underline">Cancel</button>
-                            </div>
-                          </>
-                        ) : (
-                          <span className="text-purple-600 animate-pulse">Generating response...</span>
-                        )}
+            {/* Timeline */}
+            <div className="bg-white rounded-xl shadow-sm ring-1 ring-gray-900/5 flex flex-col h-[500px]">
+              <div className="px-6 py-4 border-b border-gray-100 bg-gray-50/50 rounded-t-xl">
+                <h3 className="text-sm font-semibold text-gray-900">Activity Timeline</h3>
+              </div>
+              <div className="p-6 flex-1 overflow-y-auto">
+                <div className="space-y-6 relative before:absolute before:inset-0 before:ml-2 before:-translate-x-px before:h-full before:w-0.5 before:bg-gradient-to-b before:from-gray-200 before:via-gray-200 before:to-transparent">
+                  {company?.activities?.length > 0 ? company.activities.map((act: any) => (
+                    <div key={act.id} className="relative flex items-start gap-4">
+                      <div className="flex items-center justify-center w-5 h-5 rounded-full border-2 border-white bg-indigo-500 text-white shadow shrink-0 z-10 mt-0.5"></div>
+                      <div className="flex-1 pb-1">
+                        <div className="flex items-center justify-between mb-1">
+                          <h4 className="font-semibold text-gray-900 text-xs uppercase tracking-wide">{act.type.replace(/_/g, ' ')}</h4>
+                          <span className="text-[10px] text-gray-400 font-medium">{new Date(act.createdAt).toLocaleDateString()}</span>
+                        </div>
+                        <p className="text-xs text-gray-600 leading-relaxed">{act.description}</p>
+                        {act.user && <p className="text-[10px] text-indigo-600 mt-1.5 font-medium">By {act.user.name}</p>}
                       </div>
-                    )}
-                  </div>
-                )) : (
-                  <p className="text-sm text-gray-500 italic">Awaiting sponsor reply...</p>
-                )}
+                    </div>
+                  )) : (
+                    <div className="relative flex items-start gap-4">
+                      <div className="flex items-center justify-center w-5 h-5 rounded-full border-2 border-white bg-gray-300 shrink-0 z-10 mt-0.5"></div>
+                      <div className="flex-1 pb-1">
+                        <h4 className="font-semibold text-gray-900 text-xs uppercase tracking-wide">Target Created</h4>
+                        <span className="text-[10px] text-gray-400 font-medium block mt-1">{new Date(company?.createdAt).toLocaleString()}</span>
+                      </div>
+                    </div>
+                  )}
+                </div>
               </div>
             </div>
 
-            <div className="bg-white p-6 rounded-xl shadow-sm border border-gray-100">
-              <h3 className="font-bold text-gray-900 mb-2 text-lg border-b pb-2">Schedule Follow-up</h3>
-              <form onSubmit={handleScheduleFollowUp} className="space-y-3 mt-3">
-                <input 
-                  type="datetime-local" 
-                  value={followUpDate}
-                  onChange={e => setFollowUpDate(e.target.value)}
-                  className="w-full border p-2 rounded text-sm shadow-inner bg-gray-50 focus:bg-white"
-                  required
-                  disabled={submittingFollowUp}
-                />
-                <input 
-                  type="text" 
-                  value={followUpNote}
-                  onChange={e => setFollowUpNote(e.target.value)}
-                  placeholder="Optional reminder note..."
-                  className="w-full border p-2 rounded text-sm shadow-inner bg-gray-50 focus:bg-white"
-                  disabled={submittingFollowUp}
-                />
-                <button 
-                  type="submit" 
-                  disabled={submittingFollowUp || !followUpDate}
-                  className="w-full bg-blue-600 text-white py-2 rounded font-medium text-sm hover:bg-blue-700 disabled:opacity-50"
-                >
-                  Schedule Notification
-                </button>
-              </form>
+            {/* Notes & Replies */}
+            <div className="flex flex-col gap-6">
+              
+              {/* Internal Notes */}
+              <div className="bg-white rounded-xl shadow-sm ring-1 ring-gray-900/5 flex flex-col h-[238px]">
+                <div className="px-5 py-3 border-b border-gray-100 bg-gray-50/50 rounded-t-xl">
+                  <h3 className="text-sm font-semibold text-gray-900">Internal Notes</h3>
+                </div>
+                <div className="flex-1 overflow-y-auto p-5 space-y-3">
+                  {company?.notes?.length > 0 ? company.notes.map((note: any) => (
+                    <div key={note.id} className="bg-amber-50/50 p-3 rounded-md ring-1 ring-inset ring-amber-500/20">
+                      <p className="text-xs text-gray-800 leading-relaxed">{note.content}</p>
+                      <p className="text-[10px] text-amber-700 mt-2 font-medium">{note.author?.name} • {new Date(note.createdAt).toLocaleDateString()}</p>
+                    </div>
+                  )) : (
+                    <p className="text-xs text-gray-400 italic text-center mt-6">No notes added.</p>
+                  )}
+                </div>
+                <form onSubmit={handleAddNote} className="p-3 border-t border-gray-100 bg-gray-50 rounded-b-xl">
+                  <input 
+                    type="text" 
+                    value={newNote}
+                    onChange={e => setNewNote(e.target.value)}
+                    placeholder="Type a note and press Enter..."
+                    className="block w-full rounded-md border-0 py-1.5 px-3 text-gray-900 shadow-sm ring-1 ring-inset ring-gray-300 placeholder:text-gray-400 focus:ring-2 focus:ring-inset focus:ring-indigo-600 sm:text-sm"
+                    disabled={submittingNote}
+                  />
+                </form>
+              </div>
+
+              {/* Follow Up */}
+              <div className="bg-white rounded-xl shadow-sm ring-1 ring-gray-900/5 flex flex-col h-[238px]">
+                <div className="px-5 py-3 border-b border-gray-100 bg-gray-50/50 rounded-t-xl">
+                  <h3 className="text-sm font-semibold text-gray-900">Schedule Follow-up</h3>
+                </div>
+                <form onSubmit={handleScheduleFollowUp} className="p-5 flex flex-col h-full justify-between">
+                  <div className="space-y-4">
+                    <div>
+                      <label className="block text-xs font-medium text-gray-700 mb-1">Alert Date & Time</label>
+                      <input 
+                        type="datetime-local" 
+                        value={followUpDate}
+                        onChange={e => setFollowUpDate(e.target.value)}
+                        className="block w-full rounded-md border-0 py-1.5 px-3 text-gray-900 shadow-sm ring-1 ring-inset ring-gray-300 focus:ring-2 focus:ring-inset focus:ring-indigo-600 sm:text-sm"
+                        required
+                        disabled={submittingFollowUp}
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-xs font-medium text-gray-700 mb-1">Reminder Note</label>
+                      <input 
+                        type="text" 
+                        value={followUpNote}
+                        onChange={e => setFollowUpNote(e.target.value)}
+                        placeholder="Check if they reviewed the deck..."
+                        className="block w-full rounded-md border-0 py-1.5 px-3 text-gray-900 shadow-sm ring-1 ring-inset ring-gray-300 placeholder:text-gray-400 focus:ring-2 focus:ring-inset focus:ring-indigo-600 sm:text-sm"
+                        disabled={submittingFollowUp}
+                      />
+                    </div>
+                  </div>
+                  <button 
+                    type="submit" 
+                    disabled={submittingFollowUp || !followUpDate}
+                    className="mt-4 w-full bg-indigo-600 text-white py-2 rounded-md font-medium text-sm hover:bg-indigo-500 disabled:opacity-50 transition-colors shadow-sm"
+                  >
+                    Set Reminder
+                  </button>
+                </form>
+              </div>
             </div>
+
           </div>
         </div>
-
-      </div>
+      </main>
     </div>
   );
 }

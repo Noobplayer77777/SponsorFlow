@@ -1,4 +1,4 @@
-const API_URL = 'http://localhost:5000/api';
+const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5000/api';
 
 const getHeaders = () => {
   const token = localStorage.getItem('token');
@@ -15,13 +15,21 @@ export const api = {
     return res.json();
   },
   
-  async post(endpoint: string, data: any) {
+  async post(endpoint: string, data: any, isFormData: boolean = false) {
+    const headers = getHeaders();
+    if (isFormData) {
+      delete headers['Content-Type']; // Let browser set multipart/form-data with boundary
+    }
+    
     const res = await fetch(`${API_URL}${endpoint}`, {
       method: 'POST',
-      headers: getHeaders(),
-      body: JSON.stringify(data),
+      headers,
+      body: isFormData ? data : JSON.stringify(data),
     });
-    if (!res.ok) throw new Error('API Error');
+    if (!res.ok) {
+       const err = await res.json().catch(() => ({}));
+       throw new Error(err.message || 'API Error');
+    }
     return res.json();
   },
 

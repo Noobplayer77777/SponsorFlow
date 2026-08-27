@@ -1,23 +1,39 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useRef } from 'react';
 import { api } from '../../lib/api';
 import { useAuth } from '../../contexts/AuthContext';
 import Link from 'next/link';
+import { NotificationBell } from '../../components/NotificationBell';
+
+const STATUS_BADGES: Record<string, string> = {
+  'ASSIGNED': 'bg-blue-50 text-blue-700 ring-blue-700/10',
+  'EMAIL_DRAFTED': 'bg-amber-50 text-amber-700 ring-amber-700/10',
+  'EMAIL_SENT': 'bg-purple-50 text-purple-700 ring-purple-700/10',
+  'OPENED': 'bg-cyan-50 text-cyan-700 ring-cyan-700/10',
+  'REPLIED': 'bg-indigo-50 text-indigo-700 ring-indigo-700/10',
+  'INTERESTED': 'bg-emerald-50 text-emerald-700 ring-emerald-700/10',
+  'NEGOTIATING': 'bg-yellow-50 text-yellow-800 ring-yellow-800/10',
+  'CONFIRMED': 'bg-green-50 text-green-700 ring-green-600/20',
+  'REJECTED': 'bg-rose-50 text-rose-700 ring-rose-700/10',
+  'NOT_ASSIGNED': 'bg-gray-50 text-gray-600 ring-gray-500/10',
+};
 
 export default function CompaniesPage() {
-  const { user } = useAuth();
+  const { user, logout } = useAuth();
   const [companies, setCompanies] = useState<any[]>([]);
   const [search, setSearch] = useState('');
   const [statusFilter, setStatusFilter] = useState('');
   const [page, setPage] = useState(1);
   const [totalPages, setTotalPages] = useState(1);
+  const [loading, setLoading] = useState(true);
   
-  const [file, setFile] = useState<File | null>(null);
+  const fileInputRef = useRef<HTMLInputElement>(null);
   const [importing, setImporting] = useState(false);
 
   const fetchCompanies = async () => {
     try {
+      setLoading(true);
       const query = new URLSearchParams({
         page: page.toString(),
         ...(search && { search }),
@@ -28,15 +44,23 @@ export default function CompaniesPage() {
       setTotalPages(res.pagination.totalPages || 1);
     } catch (error) {
       console.error(error);
+    } finally {
+      setLoading(false);
     }
   };
 
   useEffect(() => {
-    fetchCompanies();
+    const delayDebounceFn = setTimeout(() => {
+      fetchCompanies();
+    }, search ? 300 : 0); // debounce search
+    
+    return () => clearTimeout(delayDebounceFn);
   }, [page, search, statusFilter]);
 
-  const handleImport = async () => {
+  const handleFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
     if (!file) return;
+    
     setImporting(true);
     try {
       const res = await api.upload('/companies/import', file);
@@ -50,7 +74,7 @@ export default function CompaniesPage() {
       }
     } finally {
       setImporting(false);
-      setFile(null);
+      if (fileInputRef.current) fileInputRef.current.value = '';
     }
   };
 
@@ -65,121 +89,264 @@ export default function CompaniesPage() {
   };
 
   return (
-    <div className="p-8 max-w-7xl mx-auto">
-      <div className="flex justify-between items-center mb-6">
-        <h1 className="text-2xl font-bold">Companies</h1>
-        <div className="flex gap-4 items-center">
-          {user?.role === 'ADMIN' && (
-            <div className="flex items-center gap-2 border p-2 rounded">
-              <input 
-                type="file" 
-                accept=".csv" 
-                onChange={e => setFile(e.target.files?.[0] || null)}
-                className="text-sm"
-              />
+    <div className="min-h-screen bg-gray-50/50 pb-12">
+      {/* Top Navigation */}
+      <header className="bg-white border-b border-gray-200 sticky top-0 z-10">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 h-16 flex items-center justify-between">
+          <div className="flex items-center gap-6">
+            <Link href={user?.role === 'ADMIN' ? '/admin' : '/member'} className="flex items-center gap-2 group">
+              <div className="w-8 h-8 bg-indigo-600 rounded-lg flex items-center justify-center shadow-sm group-hover:bg-indigo-700 transition-colors">
+                <span className="text-white font-bold text-sm">SF</span>
+              </div>
+              <span className="font-semibold text-gray-900">SponsorFlow</span>
+            </Link>
+            
+            {user?.role === 'ADMIN' && (
+              <nav className="hidden md:flex gap-6">
+                <Link href="/admin" className="text-sm font-medium text-gray-500 hover:text-gray-900 py-5 transition-colors">Analytics</Link>
+                <Link href="/companies" className="text-sm font-medium text-indigo-600 border-b-2 border-indigo-600 py-5">Directory</Link>
+                <Link href="/users" className="text-sm font-medium text-gray-500 hover:text-gray-900 py-5 transition-colors">Users</Link>
+              </nav>
+            )}
+          </div>
+          
+          <div className="flex items-center gap-4">
+            <NotificationBell />
+            <div className="h-5 w-px bg-gray-200 mx-2"></div>
+            <div className="flex items-center gap-3">
+              <div className="flex flex-col items-end">
+                <span className="text-sm font-medium text-gray-900">{user?.name}</span>
+                <span className="text-xs text-gray-500">{user?.role === 'ADMIN' ? 'Finance Lead' : 'Member'}</span>
+              </div>
               <button 
-                onClick={handleImport}
-                disabled={!file || importing}
-                className="bg-green-600 text-white px-3 py-1 rounded text-sm disabled:opacity-50"
+                onClick={logout} 
+                className="p-2 text-gray-400 hover:text-gray-600 hover:bg-gray-100 rounded-full transition-colors"
+                title="Sign out"
               >
-                {importing ? 'Importing...' : 'Import CSV'}
+                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1" /></svg>
               </button>
             </div>
-          )}
-          <Link href="/companies/new" className="bg-blue-600 text-white px-4 py-2 rounded font-medium">
-            + Add Company
-          </Link>
+          </div>
         </div>
-      </div>
+      </header>
 
-      <div className="flex gap-4 mb-6">
-        <input
-          type="text"
-          placeholder="Search by name, email, contact..."
-          value={search}
-          onChange={(e) => { setSearch(e.target.value); setPage(1); }}
-          className="border p-2 rounded flex-1"
-        />
-        <select 
-          value={statusFilter} 
-          onChange={(e) => { setStatusFilter(e.target.value); setPage(1); }}
-          className="border p-2 rounded w-48"
-        >
-          <option value="">All Statuses</option>
-          <option value="NOT_ASSIGNED">Not Assigned</option>
-          <option value="ASSIGNED">Assigned</option>
-          <option value="EMAIL_SENT">Email Sent</option>
-        </select>
-      </div>
-
-      <div className="bg-white rounded-lg shadow overflow-hidden">
-        <table className="w-full text-left border-collapse">
-          <thead>
-            <tr className="bg-gray-50 border-b">
-              <th className="p-4 font-semibold text-gray-600">Company Name</th>
-              <th className="p-4 font-semibold text-gray-600">Contact Person</th>
-              <th className="p-4 font-semibold text-gray-600">Email</th>
-              <th className="p-4 font-semibold text-gray-600">Assigned To</th>
-              <th className="p-4 font-semibold text-gray-600">Lock Status</th>
-              <th className="p-4 font-semibold text-gray-600">Status</th>
-              <th className="p-4 font-semibold text-gray-600 text-right">Actions</th>
-            </tr>
-          </thead>
-          <tbody>
-            {companies.map(c => (
-              <tr key={c.id} className="border-b hover:bg-gray-50">
-                <td className="p-4">{c.companyName}</td>
-                <td className="p-4">{c.contactPerson || '-'}</td>
-                <td className="p-4">{c.email || '-'}</td>
-                <td className="p-4 text-sm text-gray-700">
-                  {c.assignment?.user?.name || <span className="text-gray-400 italic">Unassigned</span>}
-                </td>
-                <td className="p-4 text-sm text-gray-700">
-                  {c.lockedById ? (
-                    <span className="text-orange-600 font-medium">Locked for drafting</span>
-                  ) : (
-                    <span className="text-green-600">Unlocked</span>
-                  )}
-                </td>
-                <td className="p-4">
-                  <span className="bg-blue-100 text-blue-800 text-xs px-2 py-1 rounded-full font-medium">
-                    {c.status}
-                  </span>
-                </td>
-                <td className="p-4 text-right flex justify-end gap-3">
-                  <Link href={`/companies/${c.id}`} className="text-blue-600 hover:underline">View/Edit</Link>
-                  {user?.role === 'ADMIN' && (
-                    <button onClick={() => handleDelete(c.id)} className="text-red-600 hover:underline">Delete</button>
-                  )}
-                </td>
-              </tr>
-            ))}
-            {companies.length === 0 && (
-              <tr>
-                <td colSpan={5} className="p-8 text-center text-gray-500">No companies found.</td>
-              </tr>
+      <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 pt-8 space-y-8">
+        
+        {/* Header & Actions */}
+        <div className="sm:flex sm:items-center sm:justify-between">
+          <div>
+            <h1 className="text-2xl font-bold leading-7 text-gray-900 sm:truncate sm:text-3xl sm:tracking-tight">Target Directory</h1>
+            <p className="mt-2 text-sm text-gray-500">A comprehensive list of all prospective sponsors and partners.</p>
+          </div>
+          
+          <div className="mt-4 sm:ml-4 sm:mt-0 flex gap-3">
+            {user?.role === 'ADMIN' && (
+              <>
+                <input 
+                  type="file" 
+                  accept=".csv" 
+                  ref={fileInputRef}
+                  className="hidden" 
+                  onChange={handleFileChange} 
+                />
+                <button 
+                  onClick={() => fileInputRef.current?.click()} 
+                  disabled={importing}
+                  className="inline-flex items-center gap-x-1.5 rounded-md bg-white px-3 py-2 text-sm font-semibold text-gray-900 shadow-sm ring-1 ring-inset ring-gray-300 hover:bg-gray-50 disabled:opacity-50 transition-colors"
+                >
+                  <svg className="-ml-0.5 h-5 w-5 text-gray-400" viewBox="0 0 20 20" fill="currentColor">
+                    <path fillRule="evenodd" d="M10 2a.75.75 0 01.75.75v5.59l1.95-2.1a.75.75 0 111.1 1.02l-3.25 3.5a.75.75 0 01-1.1 0l-3.25-3.5a.75.75 0 111.1-1.02l1.95 2.1V2.75A.75.75 0 0110 2zM3 14.25a.75.75 0 01.75-.75h12.5a.75.75 0 010 1.5H3.75a.75.75 0 01-.75-.75z" clipRule="evenodd" />
+                  </svg>
+                  {importing ? 'Importing...' : 'Import CSV'}
+                </button>
+                <Link 
+                  href="/companies/new" 
+                  className="inline-flex items-center gap-x-1.5 rounded-md bg-indigo-600 px-3 py-2 text-sm font-semibold text-white shadow-sm hover:bg-indigo-500 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-indigo-600 transition-colors"
+                >
+                  <svg className="-ml-0.5 h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
+                    <path d="M10.75 4.75a.75.75 0 00-1.5 0v4.5h-4.5a.75.75 0 000 1.5h4.5v4.5a.75.75 0 001.5 0v-4.5h4.5a.75.75 0 000-1.5h-4.5v-4.5z" />
+                  </svg>
+                  Add Target
+                </Link>
+              </>
             )}
-          </tbody>
-        </table>
-      </div>
+          </div>
+        </div>
 
-      <div className="flex justify-between items-center mt-6">
-        <button 
-          disabled={page <= 1} 
-          onClick={() => setPage(p => p - 1)}
-          className="px-4 py-2 border rounded disabled:opacity-50"
-        >
-          Previous
-        </button>
-        <span>Page {page} of {totalPages}</span>
-        <button 
-          disabled={page >= totalPages} 
-          onClick={() => setPage(p => p + 1)}
-          className="px-4 py-2 border rounded disabled:opacity-50"
-        >
-          Next
-        </button>
-      </div>
+        {/* Table & Filters Section */}
+        <div className="bg-white rounded-xl shadow-sm ring-1 ring-gray-900/5 overflow-hidden">
+          
+          <div className="px-6 py-5 border-b border-gray-200 sm:flex sm:items-center sm:justify-between bg-white">
+            <div className="flex gap-4 w-full sm:w-auto">
+              <div className="relative rounded-md shadow-sm w-full sm:w-64">
+                <div className="pointer-events-none absolute inset-y-0 left-0 flex items-center pl-3">
+                  <svg className="h-4 w-4 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+                  </svg>
+                </div>
+                <input 
+                  type="text" 
+                  placeholder="Search globally..." 
+                  className="block w-full rounded-md border-0 py-1.5 pl-9 pr-3 text-gray-900 ring-1 ring-inset ring-gray-300 placeholder:text-gray-400 focus:ring-2 focus:ring-inset focus:ring-indigo-600 sm:text-sm sm:leading-6"
+                  value={search}
+                  onChange={e => setSearch(e.target.value)}
+                />
+              </div>
+              <select 
+                className="block rounded-md border-0 py-1.5 pl-3 pr-10 text-gray-900 ring-1 ring-inset ring-gray-300 focus:ring-2 focus:ring-indigo-600 sm:text-sm sm:leading-6 bg-white"
+                value={statusFilter}
+                onChange={e => { setStatusFilter(e.target.value); setPage(1); }}
+              >
+                <option value="">All Statuses</option>
+                <option value="NOT_ASSIGNED">Unassigned</option>
+                <option value="ASSIGNED">Assigned</option>
+                <option value="EMAIL_DRAFTED">Email Drafted</option>
+                <option value="EMAIL_SENT">Email Sent</option>
+                <option value="REPLIED">Replied</option>
+                <option value="CONFIRMED">Confirmed</option>
+              </select>
+            </div>
+          </div>
+
+          <div className="overflow-x-auto min-h-[400px] relative">
+            {loading && (
+              <div className="absolute inset-0 z-10 bg-white/60 backdrop-blur-sm flex items-center justify-center">
+                <div className="flex items-center gap-2 text-indigo-600 font-medium">
+                  <svg className="animate-spin h-5 w-5" viewBox="0 0 24 24" fill="none">
+                    <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                    <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                  </svg>
+                  Loading...
+                </div>
+              </div>
+            )}
+            
+            <table className="min-w-full text-left text-sm whitespace-nowrap">
+              <thead className="bg-gray-50/50">
+                <tr>
+                  <th scope="col" className="py-3.5 pl-6 pr-3 font-semibold text-gray-900 border-b border-gray-200">Company</th>
+                  <th scope="col" className="px-3 py-3.5 font-semibold text-gray-900 border-b border-gray-200">Contact</th>
+                  <th scope="col" className="px-3 py-3.5 font-semibold text-gray-900 border-b border-gray-200">Assigned To</th>
+                  <th scope="col" className="px-3 py-3.5 font-semibold text-gray-900 border-b border-gray-200">Status</th>
+                  <th scope="col" className="relative py-3.5 pl-3 pr-6 border-b border-gray-200">
+                    <span className="sr-only">Actions</span>
+                  </th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-gray-100 bg-white">
+                {companies.map(c => (
+                  <tr key={c.id} className="hover:bg-gray-50/50 transition-colors group">
+                    <td className="py-4 pl-6 pr-3">
+                      <div className="font-medium text-gray-900 flex items-center gap-2">
+                        {c.companyName}
+                        {c.lockedById && c.lockedById !== user?.id && (
+                          <svg className="h-4 w-4 text-orange-500" fill="none" viewBox="0 0 24 24" stroke="currentColor" title="Locked by another user">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" />
+                          </svg>
+                        )}
+                        {c.lockedById === user?.id && (
+                          <svg className="h-4 w-4 text-emerald-500" fill="none" viewBox="0 0 24 24" stroke="currentColor" title="Locked by you">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 11V7a4 4 0 118 0m-4 8v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2z" />
+                          </svg>
+                        )}
+                      </div>
+                      {c.industry && <div className="text-gray-500 text-xs mt-0.5">{c.industry}</div>}
+                    </td>
+                    <td className="px-3 py-4">
+                      <div className="text-gray-900">{c.contactPerson || '-'}</div>
+                      <div className="text-gray-500 text-xs mt-0.5">{c.email}</div>
+                    </td>
+                    <td className="px-3 py-4">
+                      {c.assignment?.user?.name ? (
+                        <div className="flex items-center gap-2">
+                          <div className="h-6 w-6 rounded-full bg-indigo-100 flex items-center justify-center text-indigo-700 font-bold text-[10px] ring-1 ring-indigo-600/20">
+                            {c.assignment.user.name.charAt(0).toUpperCase()}
+                          </div>
+                          <span className="text-gray-900">{c.assignment.user.name}</span>
+                        </div>
+                      ) : (
+                        <span className="inline-flex items-center rounded-md bg-gray-50 px-2 py-1 text-xs font-medium text-gray-600 ring-1 ring-inset ring-gray-500/10">
+                          Unassigned
+                        </span>
+                      )}
+                    </td>
+                    <td className="px-3 py-4">
+                      <span className={`inline-flex items-center rounded-full px-2 py-1 text-xs font-medium ring-1 ring-inset ${STATUS_BADGES[c.status] || STATUS_BADGES['NOT_ASSIGNED']}`}>
+                        {c.status.replace('_', ' ')}
+                      </span>
+                    </td>
+                    <td className="py-4 pl-3 pr-6 text-right font-medium">
+                      <div className="flex justify-end gap-3 opacity-0 group-hover:opacity-100 transition-opacity focus-within:opacity-100">
+                        <Link 
+                          href={`/companies/${c.id}`} 
+                          className="text-indigo-600 hover:text-indigo-900 bg-indigo-50 px-3 py-1.5 rounded-md hover:bg-indigo-100 transition-colors"
+                        >
+                          View
+                        </Link>
+                        {user?.role === 'ADMIN' && (
+                          <button 
+                            onClick={() => handleDelete(c.id)} 
+                            className="text-rose-600 hover:text-rose-900 bg-rose-50 px-3 py-1.5 rounded-md hover:bg-rose-100 transition-colors"
+                          >
+                            Delete
+                          </button>
+                        )}
+                      </div>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+            
+            {!loading && companies.length === 0 && (
+              <div className="text-center py-16 px-6">
+                <h3 className="mt-2 text-sm font-semibold text-gray-900">No companies found</h3>
+                <p className="mt-1 text-sm text-gray-500">
+                  {search || statusFilter ? 'Try adjusting your search or filters.' : 'Your directory is completely empty. Import a CSV to get started!'}
+                </p>
+              </div>
+            )}
+          </div>
+
+          {/* Pagination */}
+          <div className="flex items-center justify-between border-t border-gray-200 bg-white px-4 py-3 sm:px-6">
+            <div className="hidden sm:flex sm:flex-1 sm:items-center sm:justify-between">
+              <div>
+                <p className="text-sm text-gray-700">
+                  Showing page <span className="font-medium">{page}</span> of <span className="font-medium">{totalPages}</span>
+                </p>
+              </div>
+              <div>
+                <nav className="isolate inline-flex -space-x-px rounded-md shadow-sm" aria-label="Pagination">
+                  <button
+                    onClick={() => setPage(p => Math.max(1, p - 1))}
+                    disabled={page <= 1}
+                    className="relative inline-flex items-center rounded-l-md px-2 py-2 text-gray-400 ring-1 ring-inset ring-gray-300 hover:bg-gray-50 focus:z-20 focus:outline-offset-0 disabled:opacity-50 transition-colors"
+                  >
+                    <span className="sr-only">Previous</span>
+                    <svg className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor" aria-hidden="true">
+                      <path fillRule="evenodd" d="M12.79 5.23a.75.75 0 01-.02 1.06L8.832 10l3.938 3.71a.75.75 0 11-1.04 1.08l-4.5-4.25a.75.75 0 010-1.08l4.5-4.25a.75.75 0 011.06.02z" clipRule="evenodd" />
+                    </svg>
+                  </button>
+                  <span className="relative inline-flex items-center px-4 py-2 text-sm font-semibold text-gray-900 ring-1 ring-inset ring-gray-300 focus:outline-offset-0">
+                    {page}
+                  </span>
+                  <button
+                    onClick={() => setPage(p => Math.min(totalPages, p + 1))}
+                    disabled={page >= totalPages}
+                    className="relative inline-flex items-center rounded-r-md px-2 py-2 text-gray-400 ring-1 ring-inset ring-gray-300 hover:bg-gray-50 focus:z-20 focus:outline-offset-0 disabled:opacity-50 transition-colors"
+                  >
+                    <span className="sr-only">Next</span>
+                    <svg className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor" aria-hidden="true">
+                      <path fillRule="evenodd" d="M7.21 14.77a.75.75 0 01.02-1.06L11.168 10 7.23 6.29a.75.75 0 111.04-1.08l4.5 4.25a.75.75 0 010 1.08l-4.5 4.25a.75.75 0 01-1.06-.02z" clipRule="evenodd" />
+                    </svg>
+                  </button>
+                </nav>
+              </div>
+            </div>
+          </div>
+        </div>
+      </main>
     </div>
   );
 }
