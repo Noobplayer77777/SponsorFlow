@@ -87,7 +87,7 @@ export default function AdminDashboard() {
             <div className="h-5 w-px bg-gray-200 mx-2"></div>
             <div className="flex items-center gap-3">
               <div className="flex flex-col items-end">
-                <span className="text-sm font-medium text-gray-900">{user?.name}</span>
+                <span className="text-sm font-medium text-gray-900">{session?.user?.name}</span>
                 <span className="text-xs text-gray-500">Finance Lead</span>
               </div>
               <button 
