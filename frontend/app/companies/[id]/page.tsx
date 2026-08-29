@@ -4,7 +4,6 @@ import { useState, useEffect, useRef } from 'react';
 import { api } from '../../../lib/api';
 import { useRouter, useParams } from 'next/navigation';
 import Link from 'next/link';
-import { useAuth } from '../../../contexts/AuthContext';
 import { NotificationBell } from '../../../components/NotificationBell';
 
 const STATUS_BADGES: Record<string, string> = {
@@ -22,6 +21,8 @@ const STATUS_BADGES: Record<string, string> = {
 
 import { getCompanyById, getTemplates } from '../../../actions/companies';
 import { lockCompany, unlockCompany, addNote, updateCompanyStatus, scheduleFollowUp } from '../../../actions/mutations';
+import { generatePersonalizedIntro, generateCompanySummary, suggestReply } from '../../../actions/ai';
+import { sendEmail } from '../../../actions/gmail';
 import { useSession, signOut } from 'next-auth/react';
 
 export default function CompanyProfilePage() {
@@ -124,17 +125,10 @@ export default function CompanyProfilePage() {
     
     setSending(true);
     try {
-      const formData = new FormData();
-      formData.append('companyId', params.id as string);
-      formData.append('subject', composer.subject);
-      formData.append('body', composer.body);
-      if (attachments) {
-        Array.from(attachments).forEach(file => {
-          formData.append('attachments', file);
-        });
+      if (attachments && attachments.length > 0) {
+        alert("Attachments are temporarily unsupported while we migrate systems.");
       }
-
-      await api.post('/gmail/send', formData, true);
+      await sendEmail(params.id as string, composer.subject, composer.body);
       alert('Email sent successfully!');
       window.location.reload();
     } catch (error: any) {
@@ -147,10 +141,10 @@ export default function CompanyProfilePage() {
   const handleGenerateIntro = async () => {
     setGeneratingIntro(true);
     try {
-      const res = await api.post('/ai/personalize', { companyId: params.id });
+      const res = await generatePersonalizedIntro(params.id as string);
       setComposer(prev => ({
         ...prev,
-        body: res.data.sentence + '\n\n' + prev.body
+        body: res.text + '\n\n' + prev.body
       }));
     } catch (error: any) {
       alert(error.message || 'Failed to generate intro');
@@ -162,9 +156,9 @@ export default function CompanyProfilePage() {
   const handleGenerateSummary = async () => {
     setGeneratingSummary(true);
     try {
-      await api.post('/ai/summary', { companyId: params.id });
-      const res = await api.get(`/companies/${params.id}`);
-      setCompany(res.data);
+      await generateCompanySummary(params.id as string);
+      const companyData = await getCompanyById(params.id as string);
+      setCompany(companyData);
     } catch (error: any) {
       alert(error.message || 'Failed to generate summary');
     } finally {
@@ -193,8 +187,8 @@ export default function CompanyProfilePage() {
     setSuggestingReplyFor(replyId);
     setSuggestedReply('');
     try {
-      const res = await api.post('/ai/reply', { emailThread: '', latestReply: content });
-      setSuggestedReply(res.data.suggestion);
+      const res = await suggestReply(content);
+      setSuggestedReply(res.suggestion);
     } catch (error: any) {
       alert(error.message || 'Failed to generate suggestion');
       setSuggestingReplyFor(null);

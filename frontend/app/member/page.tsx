@@ -1,5 +1,4 @@
 'use client';
-import { useAuth } from '../../contexts/AuthContext';
 import { useEffect, useState, useMemo } from 'react';
 import { api } from '../../lib/api';
 import Link from 'next/link';
@@ -69,17 +68,6 @@ export default function MemberDashboard() {
     }
   }, [session, status, router]);
 
-  const handleConnectGmail = async () => {
-    try {
-      const res = await api.get('/gmail/auth');
-      if (res.url) {
-        window.location.href = res.url;
-      }
-    } catch (e) {
-      alert('Failed to initiate Gmail connection');
-    }
-  };
-
   const myAssigned = companies.filter(c => c.assignment?.userId === user?.id);
   
   const metrics = useMemo(() => {
@@ -131,7 +119,7 @@ export default function MemberDashboard() {
                 {gmailStatus.email}
               </div>
             ) : (
-              <button onClick={handleConnectGmail} className="inline-flex items-center justify-center px-4 py-2 text-sm font-medium text-white bg-indigo-600 rounded-md hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500 shadow-sm transition-colors">
+              <button className="inline-flex items-center justify-center px-4 py-2 text-sm font-medium text-white bg-indigo-600 rounded-md hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500 shadow-sm transition-colors">
                 Connect Gmail
               </button>
             )}
@@ -139,7 +127,7 @@ export default function MemberDashboard() {
             <NotificationBell />
             <div className="flex items-center gap-3">
               <div className="flex flex-col items-end">
-                <span className="text-sm font-medium text-gray-900">{user?.name}</span>
+                <span className="text-sm font-medium text-gray-900">{session?.user?.name}</span>
                 <span className="text-xs text-gray-500">Member</span>
               </div>
               <button 

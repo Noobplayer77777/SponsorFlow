@@ -1,0 +1,143 @@
+'use server';
+
+import { google } from 'googleapis';
+import { prisma } from '../lib/prisma';
+import { getServerSession } from 'next-auth';
+import { authOptions } from '../app/api/auth/[...nextauth]/route';
+
+const getGmailClient = () => {
+  return new google.auth.OAuth2(
+    process.env.NEXT_PUBLIC_GOOGLE_CLIENT_ID || process.env.GOOGLE_CLIENT_ID,
+    process.env.GOOGLE_CLIENT_SECRET,
+    // Redirect URI isn't strictly needed just to send emails with a refresh token,
+    // but NextAuth uses a specific one.
+    process.env.NEXTAUTH_URL + '/api/auth/callback/google'
+  );
+};
+
+const getAuthenticatedGmailClient = async (userId: string) => {
+  const user = await prisma.user.findUnique({ where: { id: userId } });
+  
+  if (!user || (!user.gmailAccessToken && !user.gmailRefreshToken)) {
+    throw new Error('Gmail not connected or tokens missing. Please sign out and sign in again to refresh your connection.');
+  }
+
+  const oauth2Client = getGmailClient();
+  oauth2Client.setCredentials({
+    access_token: user.gmailAccessToken,
+    refresh_token: user.gmailRefreshToken,
+  });
+
+  return google.gmail({ version: 'v1', auth: oauth2Client });
+};
+
+const createMimeEmail = (
+  to: string,
+  subject: string,
+  body: string
+) => {
+  const boundary = 'outreach-boundary-' + Date.now().toString(16);
+  let raw = `To: ${to}\r\n`;
+  raw += `Subject: ${subject}\r\n`;
+  raw += `MIME-Version: 1.0\r\n`;
+  raw += `Content-Type: multipart/alternative; boundary="${boundary}"\r\n\r\n`;
+  
+  raw += `--${boundary}\r\n`;
+  raw += `Content-Type: text/plain; charset="UTF-8"\r\n\r\n`;
+  raw += `${body}\r\n\r\n`;
+  
+  raw += `--${boundary}\r\n`;
+  raw += `Content-Type: text/html; charset="UTF-8"\r\n\r\n`;
+  raw += `${body}\r\n\r\n`;
+  
+  raw += `--${boundary}--`;
+  
+  return Buffer.from(raw)
+    .toString('base64')
+    .replace(/\+/g, '-')
+    .replace(/\//g, '_')
+    .replace(/=+$/, '');
+};
+
+export async function sendEmail(companyId: string, subject: string, body: string) {
+  const session = await getServerSession(authOptions);
+  if (!session?.user) throw new Error('Unauthorized');
+  const userId = (session.user as any).id;
+  const userRole = (session.user as any).role;
+
+  const company = await prisma.company.findUnique({
+    where: { id: companyId },
+    include: { assignment: true }
+  });
+
+  if (!company) throw new Error('Company not found');
+  if (!company.email) throw new Error('Company has no email address');
+
+  if (company.status === 'EMAIL_SENT' || company.status === 'CONFIRMED') {
+    throw new Error('An email has already been sent to this company.');
+  }
+
+  if (company.status === 'NOT_ASSIGNED') {
+    const fiveMinutesAgo = new Date(Date.now() - 5 * 60 * 1000);
+    const hasValidLock = company.lockedById === userId && 
+                         company.lockedAt && 
+                         company.lockedAt > fiveMinutesAgo;
+    
+    if (!hasValidLock) {
+      throw new Error('You must lock this company before sending the first email.');
+    }
+  } else {
+    if (company.assignment?.userId !== userId && userRole !== 'ADMIN') {
+      throw new Error('Forbidden: Company assigned to another member.');
+    }
+  }
+
+  const gmail = await getAuthenticatedGmailClient(userId);
+  const rawMessage = createMimeEmail(company.email, subject, body);
+
+  try {
+    await gmail.users.messages.send({
+      userId: 'me',
+      requestBody: {
+        raw: rawMessage,
+      },
+    });
+  } catch (error: any) {
+    console.error('Gmail API Error:', error);
+    if (error.code === 429) {
+      throw new Error('Gmail API rate limit exceeded. Please try again later.');
+    }
+    if (error.code === 400 && error.message.includes('invalid recipient')) {
+      throw new Error('Invalid email recipient address.');
+    }
+    throw new Error(`Failed to send email: ${error.message}`);
+  }
+
+  // Record interaction
+  await prisma.email.create({
+    data: {
+      subject,
+      body,
+      recipient: company.email,
+      status: 'SENT',
+      sentAt: new Date(),
+      companyId,
+      senderId: userId
+    }
+  });
+
+  await prisma.company.update({
+    where: { id: companyId },
+    data: { 
+      status: 'EMAIL_SENT',
+      lockedById: null,
+      lockedAt: null
+    }
+  });
+
+  await prisma.activity.create({
+    data: { companyId, type: 'EMAIL_SENT', description: `Initial email sent: ${subject}`, userId }
+  });
+
+  return { success: true };
+}

@@ -4,7 +4,6 @@ import { useState, useEffect } from 'react';
 import { api } from '../../lib/api';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
-import { useAuth } from '../../contexts/AuthContext';
 import { NotificationBell } from '../../components/NotificationBell';
 import { 
   BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip as RechartsTooltip, Legend, ResponsiveContainer,

@@ -2,7 +2,6 @@
 
 import { useEffect, useState, useRef } from 'react';
 import { api } from '../../lib/api';
-import { useAuth } from '../../contexts/AuthContext';
 import Link from 'next/link';
 import { NotificationBell } from '../../components/NotificationBell';
 

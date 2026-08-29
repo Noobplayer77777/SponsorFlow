@@ -113,3 +113,35 @@ export async function updateCompanyStatus(companyId: string, status: string) {
   return { success: true };
 }
 export async function scheduleFollowUp(companyId: string, date: string, note?: string) { const session = await getServerSession(authOptions); if (!session?.user) throw new Error('Unauthorized'); const userId = (session.user as any).id; const parsedDate = new Date(date); await prisma.followUp.create({ data: { companyId, userId, date: parsedDate, note: note || '' } }); await prisma.company.update({ where: { id: companyId }, data: { followUpDate: parsedDate } }); await prisma.activity.create({ data: { companyId, type: 'FOLLOW_UP_SCHEDULED', description: 'Follow-up scheduled', userId } }); return { success: true }; }
+
+export async function getNotifications() {
+  const session = await getServerSession(authOptions);
+  if (!session?.user) return [];
+  const userId = (session.user as any).id;
+  return await prisma.notification.findMany({
+    where: { userId },
+    orderBy: { createdAt: 'desc' },
+    take: 50
+  });
+}
+
+export async function markAllNotificationsRead() {
+  const session = await getServerSession(authOptions);
+  if (!session?.user) return;
+  const userId = (session.user as any).id;
+  await prisma.notification.updateMany({
+    where: { userId, read: false },
+    data: { read: true }
+  });
+}
+
+export async function markNotificationRead(id: string) {
+  const session = await getServerSession(authOptions);
+  if (!session?.user) return;
+  const userId = (session.user as any).id;
+  await prisma.notification.updateMany({
+    where: { id, userId },
+    data: { read: true }
+  });
+}
+

@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { api } from '../lib/api';
+import { getNotifications, markAllNotificationsRead, markNotificationRead } from '../actions/mutations';
 import { Bell } from 'lucide-react';
 import Link from 'next/link';
 
@@ -9,8 +9,8 @@ export function NotificationBell() {
 
   const fetchNotifications = async () => {
     try {
-      const res = await api.get('/notifications');
-      setNotifications(res.data || []);
+      const data = await getNotifications();
+      setNotifications(data || []);
     } catch (e) {
       console.error(e);
     }
@@ -26,14 +26,14 @@ export function NotificationBell() {
 
   const markAllRead = async () => {
     try {
-      await api.put('/notifications/read-all', {});
+      await markAllNotificationsRead();
       fetchNotifications();
     } catch (e) {}
   };
 
   const markAsRead = async (id: string) => {
     try {
-      await api.put(`/notifications/${id}/read`, {});
+      await markNotificationRead(id);
       fetchNotifications();
     } catch (e) {}
   };

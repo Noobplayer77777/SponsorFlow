@@ -1,44 +1,45 @@
 'use client';
 
 import { useEffect, useState } from 'react';
-import { api } from '../../lib/api';
-import { useAuth } from '../../contexts/AuthContext';
+import { useSession, signOut } from 'next-auth/react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { NotificationBell } from '../../components/NotificationBell';
+import { getUsers } from '../../actions/users';
 
 export default function UsersPage() {
-  const { user, logout } = useAuth();
+  const { data: session, status } = useSession();
   const router = useRouter();
   const [users, setUsers] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    // Check if user is an ADMIN
-    const storedUser = localStorage.getItem('user');
-    if (!storedUser) {
+    if (status === 'unauthenticated') {
       router.push('/login');
       return;
     }
-    const u = JSON.parse(storedUser);
-    if (u.role !== 'ADMIN') {
-      router.push('/member');
-      return;
-    }
-
-    const fetchUsers = async () => {
-      try {
-        const res = await api.get('/users');
-        setUsers(res.data || res); // Depending on how the controller formats it
-      } catch (error) {
-        console.error('Failed to fetch users:', error);
-      } finally {
-        setLoading(false);
-      }
-    };
     
-    fetchUsers();
-  }, [router]);
+    if (status === 'authenticated') {
+      const userRole = (session.user as any).role;
+      if (userRole !== 'ADMIN') {
+        router.push('/member');
+        return;
+      }
+
+      const fetchUsers = async () => {
+        try {
+          const data = await getUsers();
+          setUsers(data);
+        } catch (error) {
+          console.error('Failed to fetch users:', error);
+        } finally {
+          setLoading(false);
+        }
+      };
+      
+      fetchUsers();
+    }
+  }, [status, session, router]);
 
   return (
     <div className="min-h-screen bg-gray-50/50 pb-12">
@@ -65,11 +66,11 @@ export default function UsersPage() {
             <div className="h-5 w-px bg-gray-200 mx-2"></div>
             <div className="flex items-center gap-3">
               <div className="flex flex-col items-end">
-                <span className="text-sm font-medium text-gray-900">{user?.name}</span>
+                <span className="text-sm font-medium text-gray-900">{session?.user?.name}</span>
                 <span className="text-xs text-gray-500">Finance Lead</span>
               </div>
               <button 
-                onClick={logout} 
+                onClick={() => signOut({ callbackUrl: '/login' })} 
                 className="p-2 text-gray-400 hover:text-gray-600 hover:bg-gray-100 rounded-full transition-colors"
                 title="Sign out"
               >

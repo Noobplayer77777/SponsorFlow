@@ -28,15 +28,15 @@ export const authOptions: NextAuthOptions = {
           update: {
             name: user.name || "User",
             googleId: user.id,
-            googleToken: account?.access_token,
-            googleRefreshToken: account?.refresh_token,
+            gmailAccessToken: account?.access_token,
+            gmailRefreshToken: account?.refresh_token,
           },
           create: {
             email: user.email,
             name: user.name || "User",
             googleId: user.id,
-            googleToken: account?.access_token,
-            googleRefreshToken: account?.refresh_token,
+            gmailAccessToken: account?.access_token,
+            gmailRefreshToken: account?.refresh_token,
             role: "MEMBER" // Default role
           }
         });
