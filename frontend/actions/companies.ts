@@ -111,3 +111,4 @@ export async function importCompanies(formData: FormData) {
 
   return { success: true, count: successCount };
 }
+export async function getTemplates() { const session = await getServerSession(authOptions); if (!session?.user) throw new Error('Unauthorized'); return await prisma.emailTemplate.findMany({ orderBy: { createdAt: 'desc' } }); }

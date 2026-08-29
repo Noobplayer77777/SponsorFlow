@@ -20,10 +20,15 @@ const STATUS_BADGES: Record<string, string> = {
   'NOT_ASSIGNED': 'bg-gray-50 text-gray-600 ring-gray-500/10',
 };
 
+import { getCompanyById, getTemplates } from '../../../actions/companies';
+import { lockCompany, unlockCompany, addNote, updateCompanyStatus, scheduleFollowUp } from '../../../actions/mutations';
+import { useSession, signOut } from 'next-auth/react';
+
 export default function CompanyProfilePage() {
   const params = useParams();
   const router = useRouter();
-  const { user, logout } = useAuth();
+  const { data: session, status } = useSession();
+  const user = session?.user as any;
   const [loading, setLoading] = useState(true);
   const [templates, setTemplates] = useState<any[]>([]);
   
@@ -46,23 +51,30 @@ export default function CompanyProfilePage() {
   const [suggestedReply, setSuggestedReply] = useState('');
 
   useEffect(() => {
-    const fetchCompanyAndTemplates = async () => {
-      try {
-        const [companyRes, templatesRes] = await Promise.all([
-          api.get(`/companies/${params.id}`),
-          api.get(`/templates`)
-        ]);
-        setCompany(companyRes.data);
-        setTemplates(templatesRes.data || []);
-      } catch (error) {
-        alert('Failed to load data');
-        router.push('/companies');
-      } finally {
-        setLoading(false);
-      }
-    };
-    fetchCompanyAndTemplates();
-  }, [params.id, router]);
+    if (status === 'unauthenticated') {
+      router.push('/login');
+      return;
+    }
+    
+    if (status === 'authenticated') {
+      const fetchCompanyAndTemplates = async () => {
+        try {
+          const [companyData, templatesData] = await Promise.all([
+            getCompanyById(params.id as string),
+            getTemplates()
+          ]);
+          setCompany(companyData);
+          setTemplates(templatesData || []);
+        } catch (error) {
+          alert('Failed to load data');
+          router.push('/companies');
+        } finally {
+          setLoading(false);
+        }
+      };
+      fetchCompanyAndTemplates();
+    }
+  }, [params.id, router, status]);
 
   const replacePlaceholders = (text: string) => {
     return text
@@ -88,21 +100,21 @@ export default function CompanyProfilePage() {
 
   const handleLock = async () => {
     try {
-      await api.post(`/companies/${params.id}/lock`, {});
+      await lockCompany(params.id as string);
       alert('Lock acquired! You can now compose the first email (5 min limit).');
       window.location.reload();
     } catch (error: any) {
-      alert(error.message || 'Failed to acquire lock');
+      alert(error.message || 'Failed to acquire lock.');
     }
   };
 
   const handleUnlock = async () => {
     try {
-      await api.post(`/companies/${params.id}/unlock`, {});
+      await unlockCompany(params.id as string);
       alert('Lock released.');
       window.location.reload();
     } catch (error: any) {
-      alert('Failed to release lock');
+      alert(error.message || 'Failed to release lock.');
     }
   };
 
@@ -166,10 +178,10 @@ export default function CompanyProfilePage() {
     
     setSubmittingNote(true);
     try {
-      await api.post(`/companies/${params.id}/notes`, { content: newNote });
+      await addNote(params.id as string, newNote);
       setNewNote('');
-      const res = await api.get(`/companies/${params.id}`);
-      setCompany(res.data);
+      const companyData = await getCompanyById(params.id as string);
+      setCompany(companyData);
     } catch (error: any) {
       alert(error.message || 'Failed to add note');
     } finally {
@@ -205,15 +217,12 @@ export default function CompanyProfilePage() {
 
     setSubmittingFollowUp(true);
     try {
-      await api.post(`/companies/${params.id}/follow-ups`, {
-        date: new Date(followUpDate).toISOString(),
-        note: followUpNote
-      });
+      await scheduleFollowUp(params.id as string, new Date(followUpDate).toISOString(), followUpNote);
       setFollowUpDate('');
       setFollowUpNote('');
       alert('Follow-up scheduled successfully!');
-      const companyRes = await api.get(`/companies/${params.id}`);
-      setCompany(companyRes.data);
+      const companyData = await getCompanyById(params.id as string);
+      setCompany(companyData);
     } catch (error: any) {
       alert(error.message || 'Failed to schedule follow-up');
     } finally {
