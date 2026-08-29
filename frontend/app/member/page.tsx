@@ -26,10 +26,15 @@ const STATUS_BADGES: Record<string, string> = {
   'REJECTED': 'bg-rose-50 text-rose-700 ring-1 ring-inset ring-rose-700/10',
 };
 
+import { getCompanies } from '../../actions/companies';
+import { useSession, signOut } from 'next-auth/react';
+import { useRouter } from 'next/navigation';
+
 export default function MemberDashboard() {
-  const { user, logout } = useAuth();
-  const [gmailStatus, setGmailStatus] = useState<any>(null);
+  const { data: session, status } = useSession();
+  const router = useRouter();
   
+  const [gmailStatus, setGmailStatus] = useState<any>({ connected: true, email: session?.user?.email });
   const [companies, setCompanies] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
 
@@ -38,22 +43,31 @@ export default function MemberDashboard() {
   const [statusFilter, setStatusFilter] = useState('');
 
   useEffect(() => {
-    const fetchDashboardData = async () => {
-      try {
-        const [gmailRes, compRes] = await Promise.all([
-          api.get('/gmail/status'),
-          api.get('/companies?limit=1000')
-        ]);
-        setGmailStatus(gmailRes);
-        setCompanies(compRes.data || []);
-      } catch (e) {
-        console.error('Failed to fetch dashboard data');
-      } finally {
-        setLoading(false);
-      }
-    };
-    fetchDashboardData();
-  }, []);
+    if (status === 'unauthenticated') {
+      router.push('/login');
+      return;
+    }
+
+    if (status === 'authenticated') {
+      const fetchDashboardData = async () => {
+        try {
+          setLoading(true);
+          const compData = await getCompanies({ limit: 1000 });
+          
+          const myCompanies = compData.data.filter((c: any) => 
+            c.assignment?.userId === (session.user as any).id
+          );
+          setCompanies(myCompanies);
+        } catch (error) {
+          console.error("Failed to load dashboard", error);
+        } finally {
+          setLoading(false);
+        }
+      };
+
+      fetchDashboardData();
+    }
+  }, [session, status, router]);
 
   const handleConnectGmail = async () => {
     try {
@@ -129,7 +143,7 @@ export default function MemberDashboard() {
                 <span className="text-xs text-gray-500">Member</span>
               </div>
               <button 
-                onClick={logout} 
+                onClick={() => signOut({ callbackUrl: '/login' })} 
                 className="p-2 text-gray-400 hover:text-gray-600 hover:bg-gray-100 rounded-full transition-colors"
                 title="Sign out"
               >

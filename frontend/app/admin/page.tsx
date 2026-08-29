@@ -13,14 +13,16 @@ import {
 
 const COLORS = ['#6366f1', '#8b5cf6', '#ec4899', '#f43f5e', '#f59e0b', '#10b981', '#06b6d4', '#3b82f6'];
 
+import { getDashboardStats } from '../../actions/analytics';
+import { useSession, signOut } from 'next-auth/react';
+
 export default function AdminDashboard() {
   const router = useRouter();
-  const { logout } = useAuth();
+  const { data: session, status } = useSession();
   const [stats, setStats] = useState<any>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
-  const [user, setUser] = useState<any>(null);
-
+  
   // Filters
   const [filters, setFilters] = useState({
     startDate: '',
@@ -30,46 +32,33 @@ export default function AdminDashboard() {
   });
 
   useEffect(() => {
-    const fetchUser = async () => {
-      const storedUser = localStorage.getItem('user');
-      if (!storedUser) {
-        router.push('/login');
-        return;
-      }
-      const u = JSON.parse(storedUser);
-      if (u.role !== 'ADMIN') {
+    if (status === 'unauthenticated') {
+      router.push('/login');
+      return;
+    }
+    
+    if (status === 'authenticated') {
+      const userRole = (session?.user as any)?.role;
+      if (userRole !== 'ADMIN') {
         router.push('/member');
         return;
       }
-      setUser(u);
-    };
-    fetchUser();
-  }, []);
-
-  useEffect(() => {
-    if (user) {
-      fetchAnalytics();
-    }
-  }, [user, filters]);
-
-  const fetchAnalytics = async () => {
-    try {
-      setLoading(true);
       
-      const queryParams = new URLSearchParams();
-      if (filters.startDate) queryParams.append('startDate', filters.startDate);
-      if (filters.endDate) queryParams.append('endDate', filters.endDate);
-      if (filters.industry) queryParams.append('industry', filters.industry);
-      if (filters.status) queryParams.append('status', filters.status);
-
-      const res = await api.get(`/analytics/dashboard?${queryParams.toString()}`);
-      setStats(res.data);
-    } catch (err: any) {
-      setError(err.message || 'Failed to load analytics');
-    } finally {
-      setLoading(false);
+      const fetchStats = async () => {
+        try {
+          setLoading(true);
+          const data = await getDashboardStats(filters);
+          setStats(data);
+        } catch (err: any) {
+          setError(err.message || 'Failed to load analytics');
+        } finally {
+          setLoading(false);
+        }
+      };
+      
+      fetchStats();
     }
-  };
+  }, [filters, session, status, router]);
 
   const handleFilterChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) => {
     setFilters({ ...filters, [e.target.name]: e.target.value });
@@ -104,7 +93,7 @@ export default function AdminDashboard() {
                 <span className="text-xs text-gray-500">Finance Lead</span>
               </div>
               <button 
-                onClick={logout} 
+                onClick={() => signOut({ callbackUrl: '/login' })} 
                 className="p-2 text-gray-400 hover:text-gray-600 hover:bg-gray-100 rounded-full transition-colors"
                 title="Sign out"
               >

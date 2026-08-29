@@ -19,8 +19,15 @@ const STATUS_BADGES: Record<string, string> = {
   'NOT_ASSIGNED': 'bg-gray-50 text-gray-600 ring-gray-500/10',
 };
 
+import { getCompanies, deleteCompany, importCompanies } from '../../actions/companies';
+import { useSession, signOut } from 'next-auth/react';
+import { useRouter } from 'next/navigation';
+
 export default function CompaniesPage() {
-  const { user, logout } = useAuth();
+  const { data: session, status } = useSession();
+  const user = session?.user as any;
+  const router = useRouter();
+  
   const [companies, setCompanies] = useState<any[]>([]);
   const [search, setSearch] = useState('');
   const [statusFilter, setStatusFilter] = useState('');
@@ -34,12 +41,12 @@ export default function CompaniesPage() {
   const fetchCompanies = async () => {
     try {
       setLoading(true);
-      const query = new URLSearchParams({
-        page: page.toString(),
-        ...(search && { search }),
-        ...(statusFilter && { status: statusFilter }),
+      const res = await getCompanies({ 
+        page, 
+        limit: 10,
+        search: search || undefined,
+        status: statusFilter || undefined
       });
-      const res = await api.get(`/companies?${query}`);
       setCompanies(res.data);
       setTotalPages(res.pagination.totalPages || 1);
     } catch (error) {
@@ -50,12 +57,19 @@ export default function CompaniesPage() {
   };
 
   useEffect(() => {
-    const delayDebounceFn = setTimeout(() => {
-      fetchCompanies();
-    }, search ? 300 : 0); // debounce search
-    
-    return () => clearTimeout(delayDebounceFn);
-  }, [page, search, statusFilter]);
+    if (status === 'unauthenticated') {
+      router.push('/login');
+      return;
+    }
+
+    if (status === 'authenticated') {
+      const delayDebounceFn = setTimeout(() => {
+        fetchCompanies();
+      }, search ? 300 : 0); // debounce search
+      
+      return () => clearTimeout(delayDebounceFn);
+    }
+  }, [page, search, statusFilter, status, router]);
 
   const handleFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
@@ -63,15 +77,14 @@ export default function CompaniesPage() {
     
     setImporting(true);
     try {
-      const res = await api.upload('/companies/import', file);
-      alert(res.message);
+      const formData = new FormData();
+      formData.append('file', file);
+      const res = await importCompanies(formData);
+      alert(`Import successful: ${res.count} companies imported.`);
       fetchCompanies();
     } catch (error: any) {
       console.error(error);
       alert('Import failed: ' + (error.message || 'Unknown error'));
-      if (error.errors) {
-        console.log("Import errors:", error.errors);
-      }
     } finally {
       setImporting(false);
       if (fileInputRef.current) fileInputRef.current.value = '';
@@ -81,7 +94,7 @@ export default function CompaniesPage() {
   const handleDelete = async (id: string) => {
     if (!confirm('Are you sure you want to delete this company?')) return;
     try {
-      await api.delete(`/companies/${id}`);
+      await deleteCompany(id);
       fetchCompanies();
     } catch (error) {
       alert('Failed to delete. Make sure you are an Admin.');
@@ -119,7 +132,7 @@ export default function CompaniesPage() {
                 <span className="text-xs text-gray-500">{user?.role === 'ADMIN' ? 'Finance Lead' : 'Member'}</span>
               </div>
               <button 
-                onClick={logout} 
+                onClick={() => signOut({ callbackUrl: '/login' })} 
                 className="p-2 text-gray-400 hover:text-gray-600 hover:bg-gray-100 rounded-full transition-colors"
                 title="Sign out"
               >
