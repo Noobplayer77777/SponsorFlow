@@ -1,6 +1,6 @@
 'use client';
 import { useState, useEffect } from 'react';
-import { api } from '../../../lib/api';
+import { getTemplates, createTemplate, updateTemplate, deleteTemplate } from '../../../actions/templates';
 import Link from 'next/link';
 
 export default function TemplatesPage() {
@@ -16,8 +16,8 @@ export default function TemplatesPage() {
 
   const fetchTemplates = async () => {
     try {
-      const res = await api.get('/templates');
-      setTemplates(res.data);
+      const data = await getTemplates();
+      setTemplates(data);
     } catch (e) {
       console.error(e);
     } finally {
@@ -29,9 +29,9 @@ export default function TemplatesPage() {
     e.preventDefault();
     try {
       if (editingId) {
-        await api.put(`/templates/${editingId}`, form);
+        await updateTemplate(editingId, form);
       } else {
-        await api.post('/templates', form);
+        await createTemplate(form);
       }
       setForm({ name: '', subject: '', body: '' });
       setEditingId(null);
@@ -49,7 +49,7 @@ export default function TemplatesPage() {
   const handleDelete = async (id: string) => {
     if (!confirm('Delete this template?')) return;
     try {
-      await api.delete(`/templates/${id}`);
+      await deleteTemplate(id);
       fetchTemplates();
     } catch (e) {
       alert('Delete failed');

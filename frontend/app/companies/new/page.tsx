@@ -1,7 +1,7 @@
 'use client';
 
 import { useState } from 'react';
-import { api } from '../../../lib/api';
+import { createCompany } from '../../../actions/companies';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 
@@ -21,7 +21,7 @@ export default function NewCompanyPage() {
     e.preventDefault();
     setLoading(true);
     try {
-      await api.post('/companies', formData);
+      await createCompany(formData);
       router.push('/companies');
     } catch (error: any) {
       alert('Failed to add target: ' + (error.message || 'Validation error'));

@@ -1,7 +1,6 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import { api } from '../../lib/api';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { NotificationBell } from '../../components/NotificationBell';
