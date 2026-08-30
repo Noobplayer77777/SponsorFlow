@@ -83,8 +83,8 @@ export async function addNote(companyId: string, content: string) {
   if (!content.trim()) throw new Error('Content is required');
 
   const note = await prisma.note.create({
-    data: { content, companyId, userId },
-    include: { user: { select: { id: true, name: true } } }
+    data: { content, companyId, authorId: userId },
+    include: { author: { select: { id: true, name: true } } }
   });
 
   await prisma.activity.create({

@@ -49,7 +49,7 @@ export async function getCompanyById(id: string) {
         include: { user: { select: { id: true, name: true, email: true } } }
       },
       notes: {
-        include: { user: { select: { id: true, name: true } } },
+        include: { author: { select: { id: true, name: true } } },
         orderBy: { createdAt: 'desc' }
       },
       emails: {

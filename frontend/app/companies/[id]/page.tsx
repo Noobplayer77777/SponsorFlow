@@ -66,8 +66,9 @@ export default function CompanyProfilePage() {
           ]);
           setCompany(companyData);
           setTemplates(templatesData || []);
-        } catch (error) {
-          alert('Failed to load data');
+        } catch (error: any) {
+          alert('Failed to load data: ' + error.message);
+          console.error("Full error:", error);
           router.push('/companies');
         } finally {
           setLoading(false);
