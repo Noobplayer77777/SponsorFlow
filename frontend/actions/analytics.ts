@@ -1,4 +1,4 @@
-﻿
+
 'use server';
 
 import { prisma } from '../lib/prisma';
@@ -89,7 +89,7 @@ export async function getDashboardStats(filters: { startDate?: string, endDate?:
         emailsSent: mEmails,
         replies: mReplies,
         confirmed: mConfirmed,
-        amountRaised: mRaised
+        raised: mRaised
       };
     });
 
