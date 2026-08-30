@@ -1,3 +1,4 @@
+﻿
 'use server';
 
 import { prisma } from '../lib/prisma';
@@ -19,14 +20,10 @@ export async function getDashboardStats(filters: { startDate?: string, endDate?:
     if (endDate) dateFilter.lte = new Date(endDate);
 
     const whereFilter: any = {};
-    
-    if (Object.keys(dateFilter).length > 0) {
-      whereFilter.createdAt = dateFilter;
-    }
+    if (Object.keys(dateFilter).length > 0) whereFilter.createdAt = dateFilter;
     if (industry) whereFilter.industry = industry;
     if (status) whereFilter.status = status;
     
-    // For members, force the userId filter to their own ID
     const userRole = (session.user as any).role;
     const finalUserId = userRole === 'ADMIN' ? userId : (session.user as any).id;
 
@@ -38,60 +35,77 @@ export async function getDashboardStats(filters: { startDate?: string, endDate?:
     const assignedCompanies = await prisma.company.count({
       where: { ...whereFilter, status: { not: 'NOT_ASSIGNED' } }
     });
-    const unassignedCompanies = totalCompanies - assignedCompanies;
 
-    // Get counts by status
-    const statuses = ['NOT_ASSIGNED', 'ASSIGNED', 'EMAIL_DRAFTED', 'EMAIL_SENT', 'OPENED', 'REPLIED', 'INTERESTED', 'NEGOTIATING', 'CONFIRMED', 'REJECTED'];
-    const statusCounts: Record<string, number> = {};
-    
-    // Execute all count queries in parallel
-    const statusPromises = statuses.map(s => 
-      prisma.company.count({ where: { ...whereFilter, status: s as any } })
-        .then(count => { statusCounts[s] = count; })
-    );
-    await Promise.all(statusPromises);
+    const emailsSent = await prisma.company.count({
+      where: { ...whereFilter, status: { in: ['EMAIL_SENT', 'OPENED', 'REPLIED', 'INTERESTED', 'NEGOTIATING', 'CONFIRMED', 'REJECTED'] } }
+    });
 
-    // Calculate conversion rates
-    const contactedCount = (statusCounts['EMAIL_SENT'] || 0) + (statusCounts['OPENED'] || 0) + 
-                          (statusCounts['REPLIED'] || 0) + (statusCounts['INTERESTED'] || 0) + 
-                          (statusCounts['NEGOTIATING'] || 0) + (statusCounts['CONFIRMED'] || 0) + 
-                          (statusCounts['REJECTED'] || 0);
-                          
-    const repliedCount = (statusCounts['REPLIED'] || 0) + (statusCounts['INTERESTED'] || 0) + 
-                        (statusCounts['NEGOTIATING'] || 0) + (statusCounts['CONFIRMED'] || 0) + 
-                        (statusCounts['REJECTED'] || 0);
-                        
-    const confirmedCount = statusCounts['CONFIRMED'] || 0;
+    const replies = await prisma.company.count({
+      where: { ...whereFilter, status: { in: ['REPLIED', 'INTERESTED', 'NEGOTIATING', 'CONFIRMED', 'REJECTED'] } }
+    });
 
-    const replyRate = contactedCount > 0 ? (repliedCount / contactedCount) * 100 : 0;
-    const conversionRate = contactedCount > 0 ? (confirmedCount / contactedCount) * 100 : 0;
+    const sponsorsConfirmed = await prisma.company.count({
+      where: { ...whereFilter, status: 'CONFIRMED' }
+    });
 
-    // Get recent activity (Notes)
-    const recentActivity = await prisma.note.findMany({
-      where: finalUserId ? { userId: finalUserId } : {},
-      orderBy: { createdAt: 'desc' },
-      take: 10,
+    const sumAgg = await prisma.company.aggregate({
+      where: whereFilter,
+      _sum: { amountRaised: true }
+    });
+    const totalSponsorshipRaised = sumAgg._sum.amountRaised || 0;
+
+    const replyRate = emailsSent > 0 ? Math.round((replies / emailsSent) * 100) + '%' : '0%';
+
+    // Industry Stats
+    const industryGroups = await prisma.company.groupBy({
+      by: ['industry'],
+      _count: { id: true },
+      where: whereFilter
+    });
+    const industryStats = industryGroups.map(g => ({
+      industry: g.industry || 'Unknown',
+      total: g._count.id
+    }));
+
+    // Member Performance
+    const members = await prisma.user.findMany({
       include: {
-        company: { select: { id: true, name: true } },
-        user: { select: { id: true, name: true } }
+        assignments: {
+          include: { company: true }
+        }
       }
+    });
+
+    const memberPerformance = members.map(m => {
+      const comps = m.assignments.map(a => a.company);
+      const mEmails = comps.filter(c => ['EMAIL_SENT', 'OPENED', 'REPLIED', 'INTERESTED', 'NEGOTIATING', 'CONFIRMED', 'REJECTED'].includes(c.status)).length;
+      const mReplies = comps.filter(c => ['REPLIED', 'INTERESTED', 'NEGOTIATING', 'CONFIRMED', 'REJECTED'].includes(c.status)).length;
+      const mConfirmed = comps.filter(c => c.status === 'CONFIRMED').length;
+      const mRaised = comps.reduce((acc, c) => acc + (c.amountRaised || 0), 0);
+      
+      return {
+        id: m.id,
+        name: m.name,
+        emailsSent: mEmails,
+        replies: mReplies,
+        confirmed: mConfirmed,
+        amountRaised: mRaised
+      };
     });
 
     return {
       totalCompanies,
       assignedCompanies,
-      unassignedCompanies,
-      statusCounts,
-      metrics: {
-        contactedCount,
-        repliedCount,
-        confirmedCount,
-        replyRate,
-        conversionRate
-      },
-      recentActivity
+      emailsSent,
+      replies,
+      sponsorsConfirmed,
+      totalSponsorshipRaised,
+      replyRate,
+      industryStats,
+      memberPerformance
     };
   } catch (error: any) {
     throw new Error(error.message || 'Failed to fetch analytics');
   }
 }
+
