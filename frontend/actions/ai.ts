@@ -37,8 +37,9 @@ export async function generatePersonalizedIntro(companyId: string) {
   Industry: ${company.industry || 'Unknown'}
   Website: ${company.website || 'Unknown'}
   Location: ${company.location || 'Unknown'}
+  Company Description: ${company.aiSummary || 'Not provided'}
   
-  The sentence should be appreciative of their work in their industry, without mentioning sponsorship yet.
+  The sentence should be appreciative of their work or mission based on the description, without mentioning sponsorship yet.
   Only return the single sentence, no greetings or sign-offs.`;
 
   const fallback = `I've been closely following the impactful work ${company.companyName} has been doing in the ${company.industry || 'tech'} space.`;
@@ -84,13 +85,17 @@ export async function generateCompanySummary(companyId: string) {
   return { success: true, summary };
 }
 
-export async function suggestReply(content: string) {
+export async function suggestReply(companyId: string, content: string) {
   const session = await getServerSession(authOptions);
   if (!session?.user) throw new Error('Unauthorized');
+
+  const company = await prisma.company.findUnique({ where: { id: companyId } });
 
   const prompt = `You are a professional sponsorship coordinator. Generate a polite, concise, and professional reply to the following response from a potential sponsor.
   
   Context of their reply: "${content}"
+  Company: ${company?.companyName || 'Unknown'}
+  Company Description: ${company?.aiSummary || 'Not provided'}
   
   Instructions:
   - Keep it under 3 short paragraphs.

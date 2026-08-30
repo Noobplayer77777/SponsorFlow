@@ -130,3 +130,14 @@ export async function createCompany(data: {
   return company;
 }
 
+
+export async function updateCompanySummary(id: string, summary: string) {
+  const session = await getServerSession(authOptions);
+  if (!session?.user) throw new Error('Unauthorized');
+  
+  await prisma.company.update({
+    where: { id },
+    data: { aiSummary: summary }
+  });
+  return { success: true };
+}
