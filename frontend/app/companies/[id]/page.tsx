@@ -276,7 +276,7 @@ export default function CompanyProfilePage() {
                 <span className="text-xs text-gray-500">{user?.role === 'ADMIN' ? 'Finance Lead' : 'Member'}</span>
               </div>
               <button 
-                onClick={logout} 
+                onClick={() => signOut({ callbackUrl: '/login' })} 
                 className="p-2 text-gray-400 hover:text-gray-600 hover:bg-gray-100 rounded-full transition-colors"
                 title="Sign out"
               >
