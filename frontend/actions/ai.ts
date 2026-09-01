@@ -107,3 +107,44 @@ export async function suggestReply(companyId: string, content: string) {
   const suggestion = await safeGenerate(prompt, fallback);
   return { success: true, suggestion };
 }
+
+export async function draftFullEmail(companyId: string) {
+  const session = await getServerSession(authOptions);
+  if (!session?.user) throw new Error("Unauthorized");
+  
+  const company = await prisma.company.findUnique({ where: { id: companyId } });
+  if (!company) throw new Error("Company not found");
+
+  const prompt = `You are an expert sponsorship outreach coordinator. Draft a full, highly personalized cold outreach email to a potential sponsor.
+  
+  Context about the target company:
+  Company Name: ${company.companyName}
+  Industry: ${company.industry || "Unknown"}
+  Website: ${company.website || "Unknown"}
+  Company Description: ${company.aiSummary || "Not provided"}
+  
+  Instructions:
+  - Write a catchy, professional Subject Line on the first line, prefixed with "SUBJECT: ".
+  - Write the body of the email starting on the next lines.
+  - Make the email concise, persuasive, and tailored precisely to what the company does (based on their description).
+  - Show how partnering with us aligns with their specific products or mission.
+  - End with a clear, low-friction call to action (e.g., a quick 10-minute chat).
+  - Do not use placeholders like [Company Name], use the actual name.
+  - You can use [My Name] for the sender signature.`;
+
+  const fallback = `SUBJECT: Exploring a partnership with ${company.companyName}\n\nHi team,\n\nI love what you are doing at ${company.companyName}. We are looking for sponsors and think you would be a great fit. Let us chat!\n\nBest,\n[My Name]`;
+
+  const rawText = await safeGenerate(prompt, fallback);
+  
+  let subject = "Sponsorship Opportunity";
+  let body = rawText;
+  
+  const subjectMatch = rawText.match(/^SUBJECT:\s*(.+)$/im);
+  if (subjectMatch) {
+    subject = subjectMatch[1].trim();
+    body = rawText.replace(subjectMatch[0], "").trim();
+  }
+
+  return { success: true, subject, body };
+}
+

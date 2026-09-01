@@ -21,7 +21,7 @@ const STATUS_BADGES: Record<string, string> = {
 
 import { getCompanyById, getTemplates, updateCompanySummary } from '../../../actions/companies';
 import { lockCompany, unlockCompany, addNote, updateCompanyStatus, scheduleFollowUp } from '../../../actions/mutations';
-import { generatePersonalizedIntro, generateCompanySummary, suggestReply } from '../../../actions/ai';
+import { generatePersonalizedIntro, generateCompanySummary, suggestReply, draftFullEmail } from '../../../actions/ai';
 import { sendEmail } from '../../../actions/gmail';
 import { useSession, signOut } from 'next-auth/react';
 
@@ -47,6 +47,7 @@ export default function CompanyProfilePage() {
   const [followUpNote, setFollowUpNote] = useState('');
   const [submittingFollowUp, setSubmittingFollowUp] = useState(false);
   const [generatingIntro, setGeneratingIntro] = useState(false);
+  const [draftingEmail, setDraftingEmail] = useState(false);
   const [generatingSummary, setGeneratingSummary] = useState(false);
   const [isEditingSummary, setIsEditingSummary] = useState(false);
   const [summaryText, setSummaryText] = useState('');
@@ -155,6 +156,21 @@ export default function CompanyProfilePage() {
       alert(error.message || 'Failed to generate intro');
     } finally {
       setGeneratingIntro(false);
+    }
+  };
+
+  const handleDraftEmail = async () => {
+    setDraftingEmail(true);
+    try {
+      const res = await draftFullEmail(params.id as string);
+      setComposer({
+        subject: res.subject,
+        body: res.body
+      });
+    } catch (error: any) {
+      alert(error.message || 'Failed to draft email');
+    } finally {
+      setDraftingEmail(false);
     }
   };
 
@@ -479,16 +495,28 @@ export default function CompanyProfilePage() {
                   <div>
                     <div className="flex justify-between items-center mb-1">
                       <label className="block text-xs font-medium text-gray-500">Message</label>
-                      <button 
-                        type="button"
-                        onClick={handleGenerateIntro}
-                        disabled={generatingIntro || !company?.aiSummary}
-                        className="text-xs text-indigo-600 font-medium hover:text-indigo-800 disabled:opacity-50 disabled:hover:text-indigo-600 transition-colors flex items-center gap-1"
-                        title={!company?.aiSummary ? "Generate an AI Profile first" : "Generate intro paragraph based on profile"}
-                      >
-                        <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 10V3L4 14h7v7l9-11h-7z" /></svg>
-                        {generatingIntro ? 'Generating...' : 'Magic Intro'}
-                      </button>
+                      <div className="flex items-center gap-4">
+                        <button 
+                          type="button"
+                          onClick={handleDraftEmail}
+                          disabled={draftingEmail || !company?.aiSummary}
+                          className="text-xs text-indigo-600 font-medium hover:text-indigo-800 disabled:opacity-50 disabled:hover:text-indigo-600 transition-colors flex items-center gap-1"
+                          title={!company?.aiSummary ? "Generate an AI Profile first" : "Draft a complete email based on the company's profile"}
+                        >
+                          <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19.92 12.38a1 1 0 00-.22-1.09l-7-7a.996.996 0 10-1.41 1.41l5.3 5.3H4v2h12.59l-5.3 5.3a.996.996 0 000 1.41c.19.2.44.3.7.3s.51-.1.71-.29l7-7c.09-.09.16-.21.21-.33z" /></svg>
+                          {draftingEmail ? 'Drafting...' : 'Draft Full Email'}
+                        </button>
+                        <button 
+                          type="button"
+                          onClick={handleGenerateIntro}
+                          disabled={generatingIntro || !company?.aiSummary}
+                          className="text-xs text-indigo-600 font-medium hover:text-indigo-800 disabled:opacity-50 disabled:hover:text-indigo-600 transition-colors flex items-center gap-1"
+                          title={!company?.aiSummary ? "Generate an AI Profile first" : "Generate just an intro paragraph"}
+                        >
+                          <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 10V3L4 14h7v7l9-11h-7z" /></svg>
+                          {generatingIntro ? 'Generating...' : 'Magic Intro'}
+                        </button>
+                      </div>
                     </div>
                     <div className="relative group">
                       {previewMode ? (
