@@ -9,18 +9,18 @@ const getModel = () => {
   const apiKey = process.env.GEMINI_API_KEY || '';
   if (!apiKey) return null;
   const genAI = new GoogleGenerativeAI(apiKey);
-  return genAI.getGenerativeModel({ model: 'gemini-1.5-flash' });
+  return genAI.getGenerativeModel({ model: 'gemini-2.5-flash' });
 };
 
 async function safeGenerate(prompt: string, fallback: string): Promise<string> {
   const model = getModel();
-  if (!model) return "AI ERROR: GEMINI_API_KEY environment variable is missing on the server.\n\nFallback text:\n" + fallback;
+  if (!model) return fallback;
   try {
     const result = await model.generateContent(prompt);
     return result.response.text().trim();
   } catch (error) {
     console.error('AI Generation Failed:', error);
-    return "AI ERROR: " + (error.message || String(error)) + "\n\nFallback text:\n" + fallback;
+    return fallback;
   }
 }
 
