@@ -14,13 +14,13 @@ const getModel = () => {
 
 async function safeGenerate(prompt: string, fallback: string): Promise<string> {
   const model = getModel();
-  if (!model) return fallback;
+  if (!model) return "AI ERROR: GEMINI_API_KEY environment variable is missing on the server.\n\nFallback text:\n" + fallback;
   try {
     const result = await model.generateContent(prompt);
     return result.response.text().trim();
   } catch (error) {
     console.error('AI Generation Failed:', error);
-    return fallback;
+    return "AI ERROR: " + (error.message || String(error)) + "\n\nFallback text:\n" + fallback;
   }
 }
 
