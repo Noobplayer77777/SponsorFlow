@@ -23,7 +23,7 @@ import { getCompanyById, getTemplates, updateCompanySummary } from '../../../act
 import { lockCompany, unlockCompany, addNote, updateCompanyStatus, scheduleFollowUp } from '../../../actions/mutations';
 import { generatePersonalizedIntro, generateCompanySummary, suggestReply, draftFullEmail, getDraftEmailPrompt } from '../../../actions/ai';
 import { GoogleGenerativeAI } from '@google/generative-ai';
-import { sendEmail } from '../../../actions/gmail';
+import { sendEmail, sendEmailWithAttachments } from '../../../actions/gmail';
 import { useSession, signOut } from 'next-auth/react';
 
 export default function CompanyProfilePage() {
@@ -132,10 +132,18 @@ export default function CompanyProfilePage() {
     
     setSending(true);
     try {
+      const formData = new FormData();
+      formData.append('companyId', params.id as string);
+      formData.append('subject', composer.subject);
+      formData.append('body', composer.body);
+      
       if (attachments && attachments.length > 0) {
-        alert("Attachments are temporarily unsupported while we migrate systems.");
+        attachments.forEach(file => {
+          formData.append('attachments', file);
+        });
       }
-      await sendEmail(params.id as string, composer.subject, composer.body);
+      
+      await sendEmailWithAttachments(formData);
       alert('Email sent successfully!');
       window.location.reload();
     } catch (error: any) {

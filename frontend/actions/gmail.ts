@@ -1,6 +1,7 @@
 'use server';
 
 import { google } from 'googleapis';
+import MailComposer from 'nodemailer/lib/mail-composer';
 import { prisma } from '../lib/prisma';
 import { getServerSession } from 'next-auth';
 import { authOptions } from '../app/api/auth/[...nextauth]/route';
@@ -141,3 +142,128 @@ export async function sendEmail(companyId: string, subject: string, body: string
 
   return { success: true };
 }
+
+
+export async function sendEmailWithAttachments(formData: FormData) {
+  const session = await getServerSession(authOptions);
+  if (!session?.user) throw new Error("Unauthorized");
+  const userId = (session.user as any).id;
+  const userRole = (session.user as any).role;
+
+  const companyId = formData.get("companyId") as string;
+  const subject = formData.get("subject") as string;
+  const body = formData.get("body") as string;
+  
+  if (!companyId || !subject || !body) {
+    throw new Error("Missing required fields");
+  }
+
+  const company = await prisma.company.findUnique({
+    where: { id: companyId },
+    include: { assignment: true }
+  });
+
+  if (!company) throw new Error("Company not found");
+  if (!company.email) throw new Error("Company has no email address");
+
+  if (company.status === "EMAIL_SENT" || company.status === "CONFIRMED") {
+    throw new Error("An email has already been sent to this company.");
+  }
+
+  if (company.status === "NOT_ASSIGNED") {
+    const fiveMinutesAgo = new Date(Date.now() - 5 * 60 * 1000);
+    const hasValidLock = company.lockedById === userId && 
+                         company.lockedAt && 
+                         company.lockedAt > fiveMinutesAgo;
+    
+    if (!hasValidLock) {
+      throw new Error("You must lock this company before sending the first email.");
+    }
+  } else {
+    if (company.assignment?.userId !== userId && userRole !== "ADMIN") {
+      throw new Error("Forbidden: Company assigned to another member.");
+    }
+  }
+
+  const gmail = await getAuthenticatedGmailClient(userId);
+  
+  const attachments = [];
+  // formData.getAll("attachments") gets all files appended
+  const fileEntries = formData.getAll("attachments");
+  for (const entry of fileEntries) {
+    if (entry instanceof File && entry.size > 0) {
+      const buffer = Buffer.from(await entry.arrayBuffer());
+      attachments.push({
+        filename: entry.name,
+        content: buffer,
+        contentType: entry.type
+      });
+    }
+  }
+
+  const mail = new MailComposer({
+    to: company.email,
+    subject: subject,
+    text: body,
+    html: body.replace(/\n/g, "<br>"),
+    attachments: attachments
+  });
+
+  const mailBuffer = await new Promise<Buffer>((resolve, reject) => {
+    mail.compile().build((err, message) => {
+      if (err) reject(err);
+      else resolve(message);
+    });
+  });
+
+  const rawMessage = mailBuffer.toString("base64")
+    .replace(/\+/g, "-")
+    .replace(/\//g, "_")
+    .replace(/=+$/, "");
+
+  try {
+    await gmail.users.messages.send({
+      userId: "me",
+      requestBody: {
+        raw: rawMessage,
+      },
+    });
+  } catch (error: any) {
+    console.error("Gmail API Error:", error);
+    if (error.code === 429) {
+      throw new Error("Gmail API rate limit exceeded. Please try again later.");
+    }
+    if (error.code === 400 && error.message.includes("invalid recipient")) {
+      throw new Error("Invalid email recipient address.");
+    }
+    throw new Error(`Failed to send email: ${error.message}`);
+  }
+
+  await prisma.email.create({
+    data: {
+      subject,
+      body,
+      recipient: company.email,
+      status: "SENT",
+      sentAt: new Date(),
+      companyId,
+      senderId: userId
+    }
+  });
+
+  await prisma.company.update({
+    where: { id: companyId },
+    data: { 
+      status: "EMAIL_SENT",
+      lockedById: null,
+      lockedAt: null
+    }
+  });
+
+  await prisma.activity.create({
+    data: { companyId, type: "EMAIL_SENT", description: `Initial email sent: ${subject}`, userId }
+  });
+
+  return { success: true };
+}
+
