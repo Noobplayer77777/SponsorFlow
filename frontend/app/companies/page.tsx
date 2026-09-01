@@ -127,7 +127,7 @@ export default function CompaniesPage() {
             <div className="flex items-center gap-3">
               <div className="flex flex-col items-end">
                 <span className="text-sm font-medium text-gray-900">{session?.user?.name}</span>
-                <span className="text-xs text-gray-500">{(session?.user as any)?.role === 'ADMIN' ? 'Finance Lead' : 'Member'}</span>
+                <span className="text-xs text-gray-500">{(session?.user as any)?.role === 'ADMIN' ? 'Admin' : 'Member'}</span>
               </div>
               <button 
                 onClick={() => signOut({ callbackUrl: '/login' })} 

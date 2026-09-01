@@ -64,6 +64,16 @@ export async function getCompanyById(id: string) {
 export async function deleteCompany(id: string) {
   const session = await getServerSession(authOptions);
   if (!session?.user || (session.user as any).role !== 'ADMIN') throw new Error('Unauthorized');
+  
+  // Perform manual cascade deletions since the schema is missing some onDelete: Cascade rules
+  await prisma.reply.deleteMany({ where: { companyId: id } });
+  await prisma.email.deleteMany({ where: { companyId: id } });
+  await prisma.note.deleteMany({ where: { companyId: id } });
+  await prisma.activity.deleteMany({ where: { companyId: id } });
+  await prisma.followUp.deleteMany({ where: { companyId: id } });
+  await prisma.notification.deleteMany({ where: { companyId: id } });
+  await prisma.assignment.deleteMany({ where: { companyId: id } });
+
   await prisma.company.delete({ where: { id } });
   return { success: true };
 }

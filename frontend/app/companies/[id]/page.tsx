@@ -348,7 +348,7 @@ export default function CompanyProfilePage() {
             <div className="flex items-center gap-3">
               <div className="flex flex-col items-end">
                 <span className="text-sm font-medium text-gray-900">{user?.name}</span>
-                <span className="text-xs text-gray-500">{user?.role === 'ADMIN' ? 'Finance Lead' : 'Member'}</span>
+                <span className="text-xs text-gray-500">{user?.role === 'ADMIN' ? 'Admin' : 'Member'}</span>
               </div>
               <button 
                 onClick={() => signOut({ callbackUrl: '/login' })} 
