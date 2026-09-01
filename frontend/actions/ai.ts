@@ -115,22 +115,32 @@ export async function draftFullEmail(companyId: string) {
   const company = await prisma.company.findUnique({ where: { id: companyId } });
   if (!company) throw new Error("Company not found");
 
-  const prompt = `You are an expert sponsorship outreach coordinator. Draft a full, highly personalized cold outreach email to a potential sponsor.
-  
-  Context about the target company:
-  Company Name: ${company.companyName}
-  Industry: ${company.industry || "Unknown"}
-  Website: ${company.website || "Unknown"}
-  Company Description: ${company.aiSummary || "Not provided"}
-  
-  Instructions:
-  - Write a catchy, professional Subject Line on the first line, prefixed with "SUBJECT: ".
-  - Write the body of the email starting on the next lines.
-  - Make the email concise, persuasive, and tailored precisely to what the company does (based on their description).
-  - Show how partnering with us aligns with their specific products or mission.
-  - End with a clear, low-friction call to action (e.g., a quick 10-minute chat).
-  - Do not use placeholders like [Company Name], use the actual name.
-  - You can use [My Name] for the sender signature.`;
+  const prompt = `Write a professional, persuasive sponsorship outreach email to a potential sponsor for **Hack Club**, a student-led technology and coding community at our college.
+
+The target sponsor company is: ${company.companyName}
+Their industry: ${company.industry || "Unknown"}
+Company Context/Description: ${company.aiSummary || "Not provided"}
+
+The goal of the email is to introduce Hack Club, explain our community briefly, and convince ${company.companyName} to consider sponsoring us.
+
+Include:
+- A strong but professional subject line prefixed with "SUBJECT: ".
+- A short introduction about Hack Club and our college/community.
+- A brief explanation of the event/program we are organizing.
+- Why partnering with Hack Club aligns with ${company.companyName} (use their Company Context to personalize why they specifically are a great fit).
+- What kind of sponsorship/support we are looking for (financial sponsorship, prizes, merchandise, food, workshops, mentorship, or other relevant support).
+- Clear benefits for the sponsor, such as brand visibility among students, social media promotion, logo placement, event branding, opportunities to interact with participants, and potential talent/recruitment exposure.
+- A professional and respectful call to action asking if they would be interested in discussing a sponsorship opportunity.
+
+Guidelines:
+- Address the email directly to the team at ${company.companyName}.
+- Keep the email concise enough that a company representative will actually read it.
+- Make it sound like it was written by a genuine college student/organizing team, not like generic AI-generated marketing copy.
+- Avoid exaggerated claims and do not invent participant numbers, event statistics, or sponsorship amounts.
+- Use placeholders such as [College Name], [Event Name], [Date], and [Expected Participants] wherever information is missing.
+- You can use [My Name] for the sender signature.
+
+Tone: professional, confident, enthusiastic, and student-friendly. The email should focus on creating a mutually beneficial partnership rather than simply asking for money.`;
 
   const fallback = `SUBJECT: Exploring a partnership with ${company.companyName}\n\nHi team,\n\nI love what you are doing at ${company.companyName}. We are looking for sponsors and think you would be a great fit. Let us chat!\n\nBest,\n[My Name]`;
 
@@ -147,4 +157,3 @@ export async function draftFullEmail(companyId: string) {
 
   return { success: true, subject, body };
 }
-
