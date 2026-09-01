@@ -1,1 +1,0 @@
-const { PrismaClient } = require('@prisma/client'); const prisma = new PrismaClient(); async function main() { const res = await prisma.user.updateMany({ data: { role: 'ADMIN' } }); console.log('Promoted', res.count, 'users'); } main().then(() => prisma.$disconnect());
