@@ -172,8 +172,23 @@ export default function CompanyProfilePage() {
       const genAI = new GoogleGenerativeAI(apiKey);
       const model = genAI.getGenerativeModel({ model: 'gemini-3.6-flash' });
       
-      const result = await model.generateContent(prompt);
-      const rawText = result.response.text().trim();
+      let rawText = '';
+      let retries = 3;
+      while (retries > 0) {
+        try {
+          const result = await model.generateContent(prompt);
+          rawText = result.response.text().trim();
+          break;
+        } catch (err: any) {
+          if (err.message?.includes('503') && retries > 1) {
+            retries--;
+            console.log('Google API overloaded (503). Retrying in 2 seconds... Retries left:', retries);
+            await new Promise(resolve => setTimeout(resolve, 2000));
+          } else {
+            throw err;
+          }
+        }
+      }
       
       let subject = 'Sponsorship Opportunity';
       let body = rawText;
