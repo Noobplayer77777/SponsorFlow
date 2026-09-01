@@ -175,3 +175,46 @@ Guidelines:
 
   return { success: true, subject, body };
 }
+export async function getDraftEmailPrompt(companyId: string) {
+  const session = await getServerSession(authOptions);
+  if (!session?.user) throw new Error("Unauthorized");
+  
+  const company = await prisma.company.findUnique({ where: { id: companyId } });
+  if (!company) throw new Error("Company not found");
+
+  const prompt = `Write a professional, persuasive, and detailed sponsorship outreach email to a potential sponsor for **Hack Club VIT Chennai**, a student-led technology and coding community.
+
+The target sponsor company is: ${company.companyName}
+Their industry: ${company.industry || "Unknown"}
+Company Context/Description: ${company.aiSummary || "Not provided"}
+
+Context about Hack Club VIT Chennai:
+- We are a community of student builders, engineers, and designers.
+- Stats: 5,000+ participants reached, 20+ colleges represented, 2x Best Tech Club at VIT Chennai (2021 & 2022).
+- Past Partners: Polygon, Devfolio, Appwrite, JioSaavn, ETHIndia.
+- Flagship Event: HackNight 25 (36-hour offline hackathon, 5,000+ registrations, 1.25L Prize Pool).
+- Other Events: h.acKnight (48-hour offline marathon), CyberX (collaboration with Chennai Police), Hack-Her (all-women 24-hour hackathon).
+- Partnership Options: Challenge tracks, Prize sponsorship, Workshops/Tech talks, Talent & Recruitment (direct access to next interns/hires), Product adoption (API/toolchain usage), Mentorship & Judging.
+- Acceptable Contributions: Cash, API credits, dev tools, swag, goodies, or services.
+- Contact: hackclubfinance@gmail.com
+
+The goal of the email is to introduce Hack Club VIT Chennai, thoroughly explain our scale and impact, and convince ${company.companyName} to consider a mutually beneficial partnership.
+
+Include:
+- A strong, catchy subject line prefixed with "SUBJECT: ".
+- A detailed introduction about Hack Club VIT Chennai and our massive reach (mention the 5,000+ builders and 2x Best Tech Club awards).
+- A breakdown of our flagship hackathons and the value they bring.
+- Why partnering with Hack Club aligns perfectly with ${company.companyName} (use their Company Context to personalize this section heavily).
+- Specific partnership options they could take (e.g., Challenge Track, APIs, Recruitment).
+- A professional call to action asking for a quick 20-minute chat.
+
+Guidelines:
+- Make the email detailed, comprehensive, and persuasive (at least 4-5 paragraphs). Do not make it too short.
+- Address the email directly to the team at ${company.companyName}.
+- Make it sound like it was written by genuine, ambitious college organizers.
+- Do not use generic placeholders where facts are provided above.
+- You can use [My Name] for the sender signature.`;
+
+  return { apiKey: process.env.GEMINI_API_KEY || "", prompt, companyName: company.companyName };
+}
+

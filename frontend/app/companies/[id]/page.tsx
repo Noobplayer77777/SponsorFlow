@@ -21,7 +21,8 @@ const STATUS_BADGES: Record<string, string> = {
 
 import { getCompanyById, getTemplates, updateCompanySummary } from '../../../actions/companies';
 import { lockCompany, unlockCompany, addNote, updateCompanyStatus, scheduleFollowUp } from '../../../actions/mutations';
-import { generatePersonalizedIntro, generateCompanySummary, suggestReply, draftFullEmail } from '../../../actions/ai';
+import { generatePersonalizedIntro, generateCompanySummary, suggestReply, draftFullEmail, getDraftEmailPrompt } from '../../../actions/ai';
+import { GoogleGenerativeAI } from '@google/generative-ai';
 import { sendEmail } from '../../../actions/gmail';
 import { useSession, signOut } from 'next-auth/react';
 
@@ -162,13 +163,30 @@ export default function CompanyProfilePage() {
   const handleDraftEmail = async () => {
     setDraftingEmail(true);
     try {
-      const res = await draftFullEmail(params.id as string);
-      setComposer({
-        subject: res.subject,
-        body: res.body
-      });
+      const { apiKey, prompt, companyName } = await getDraftEmailPrompt(params.id as string);
+      if (!apiKey) {
+        setComposer({ subject: 'API Key Missing', body: 'Please set GEMINI_API_KEY in your environment.'});
+        return;
+      }
+      
+      const genAI = new GoogleGenerativeAI(apiKey);
+      const model = genAI.getGenerativeModel({ model: 'gemini-3.6-flash' });
+      
+      const result = await model.generateContent(prompt);
+      const rawText = result.response.text().trim();
+      
+      let subject = 'Sponsorship Opportunity';
+      let body = rawText;
+      const subjectMatch = rawText.match(/^SUBJECT:\s*(.+)$/im);
+      if (subjectMatch) {
+        subject = subjectMatch[1].trim();
+        body = rawText.replace(subjectMatch[0], '').trim();
+      }
+      
+      setComposer({ subject, body });
     } catch (error: any) {
       alert(error.message || 'Failed to draft email');
+      console.error(error);
     } finally {
       setDraftingEmail(false);
     }
