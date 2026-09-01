@@ -1,7 +1,5 @@
 'use server';
 
-export const maxDuration = 60; // Allow AI functions to run longer than the 10s default
-
 import { GoogleGenerativeAI } from '@google/generative-ai';
 import { prisma } from '../lib/prisma';
 import { getServerSession } from 'next-auth';

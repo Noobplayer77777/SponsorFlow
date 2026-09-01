@@ -1,3 +1,5 @@
+export const maxDuration = 60; // Allow Netlify functions to run up to 60s for AI
+
 import type { Metadata } from "next";
 import { Inter } from "next/font/google";
 import "./globals.css";
