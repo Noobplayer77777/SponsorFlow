@@ -62,7 +62,7 @@ export default function MemberDashboard() {
     }
   }, [session, status, router]);
 
-  const myAssigned = companies.filter(c => c.assignment?.userId === user?.id);
+  const myAssigned = companies.filter(c => c.assignment?.userId === (session?.user as any)?.id);
   
   const metrics = useMemo(() => {
     return [
