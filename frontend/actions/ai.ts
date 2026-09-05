@@ -76,7 +76,7 @@ export async function generateCompanySummary(companyId: string) {
 - **Recent News / Activities:** Recently expanded their core product line.`;
 
   const summary = await safeGenerate(prompt, fallback);
-  
+
   await prisma.company.update({
     where: { id: companyId },
     data: { aiSummary: summary }
@@ -101,7 +101,8 @@ export async function suggestReply(companyId: string, content: string) {
   - Keep it under 3 short paragraphs.
   - Be polite and appreciative.
   - If they asked a question, address it professionally.
-  - Do not include placeholders like [Your Name]. Just write the body of the email.`;
+  - Do not include placeholders like [Your Name]. Just write the body of the email.
+  - Do not use hyphen , dash or anything that will make the text look ai generated`;
 
   const fallback = `Thank you for getting back to us so quickly.\n\nWe appreciate your response and look forward to the possibility of collaborating. Please let me know if you need any further information from our end.`;
   const suggestion = await safeGenerate(prompt, fallback);
@@ -111,7 +112,7 @@ export async function suggestReply(companyId: string, content: string) {
 export async function draftFullEmail(companyId: string) {
   const session = await getServerSession(authOptions);
   if (!session?.user) throw new Error("Unauthorized");
-  
+
   const company = await prisma.company.findUnique({ where: { id: companyId } });
   if (!company) throw new Error("Company not found");
 
@@ -163,10 +164,10 @@ Guidelines:
     console.error("AI Generation Failed:", error);
     rawText = "AI ERROR: " + (error.message || String(error)) + "\n\n" + fallbackBase;
   }
-  
+
   let subject = "Sponsorship Opportunity";
   let body = rawText;
-  
+
   const subjectMatch = rawText.match(/^SUBJECT:\s*(.+)$/im);
   if (subjectMatch) {
     subject = subjectMatch[1].trim();
@@ -178,7 +179,7 @@ Guidelines:
 export async function getDraftEmailPrompt(companyId: string) {
   const session = await getServerSession(authOptions);
   if (!session?.user) throw new Error("Unauthorized");
-  
+
   const company = await prisma.company.findUnique({ where: { id: companyId } });
   if (!company) throw new Error("Company not found");
 
