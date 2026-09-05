@@ -5,6 +5,7 @@ import MailComposer from 'nodemailer/lib/mail-composer';
 import { prisma } from '../lib/prisma';
 import { getServerSession } from 'next-auth';
 import { authOptions } from '../app/api/auth/[...nextauth]/route';
+import { marked } from 'marked';
 
 const getGmailClient = () => {
   return new google.auth.OAuth2(
@@ -32,7 +33,7 @@ const getAuthenticatedGmailClient = async (userId: string) => {
   return google.gmail({ version: 'v1', auth: oauth2Client });
 };
 
-const createMimeEmail = (
+const createMimeEmail = async (
   to: string,
   subject: string,
   body: string
@@ -47,9 +48,11 @@ const createMimeEmail = (
   raw += `Content-Type: text/plain; charset="UTF-8"\r\n\r\n`;
   raw += `${body}\r\n\r\n`;
   
+  const htmlBody = await marked.parse(body);
+  
   raw += `--${boundary}\r\n`;
   raw += `Content-Type: text/html; charset="UTF-8"\r\n\r\n`;
-  raw += `${body}\r\n\r\n`;
+  raw += `${htmlBody}\r\n\r\n`;
   
   raw += `--${boundary}--`;
   
@@ -94,7 +97,7 @@ export async function sendEmail(companyId: string, subject: string, body: string
   }
 
   const gmail = await getAuthenticatedGmailClient(userId);
-  const rawMessage = createMimeEmail(company.email, subject, body);
+  const rawMessage = await createMimeEmail(company.email, subject, body);
 
   try {
     await gmail.users.messages.send({
@@ -207,11 +210,13 @@ export async function sendEmailWithAttachments(formData: FormData) {
     }
   }
 
+  const htmlBody = await marked.parse(body);
+
   const mail = new MailComposer({
     to: company.email,
     subject: subject,
     text: body,
-    html: body.replace(/\n/g, "<br>"),
+    html: htmlBody,
     attachments: attachments
   });
 
