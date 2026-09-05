@@ -30,18 +30,7 @@ export default function AdminDashboard() {
   });
 
   useEffect(() => {
-    if (status === 'unauthenticated') {
-      router.push('/login');
-      return;
-    }
-    
     if (status === 'authenticated') {
-      const userRole = (session?.user as any)?.role;
-      if (userRole !== 'ADMIN') {
-        router.push('/member');
-        return;
-      }
-      
       const fetchStats = async () => {
         try {
           setLoading(true);

@@ -41,11 +41,6 @@ export default function MemberDashboard() {
   const [statusFilter, setStatusFilter] = useState('');
 
   useEffect(() => {
-    if (status === 'unauthenticated') {
-      router.push('/login');
-      return;
-    }
-
     if (status === 'authenticated') {
       const fetchDashboardData = async () => {
         try {

@@ -57,11 +57,6 @@ export default function CompanyProfilePage() {
   const [suggestedReply, setSuggestedReply] = useState('');
 
   useEffect(() => {
-    if (status === 'unauthenticated') {
-      router.push('/login');
-      return;
-    }
-    
     if (status === 'authenticated') {
       const fetchCompanyAndTemplates = async () => {
         try {

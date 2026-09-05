@@ -14,18 +14,7 @@ export default function UsersPage() {
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    if (status === 'unauthenticated') {
-      router.push('/login');
-      return;
-    }
-    
     if (status === 'authenticated') {
-      const userRole = (session.user as any).role;
-      if (userRole !== 'ADMIN') {
-        router.push('/member');
-        return;
-      }
-
       const fetchUsers = async () => {
         try {
           const data = await getUsers();

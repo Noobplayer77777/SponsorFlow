@@ -55,11 +55,6 @@ export default function CompaniesPage() {
   };
 
   useEffect(() => {
-    if (status === 'unauthenticated') {
-      router.push('/login');
-      return;
-    }
-
     if (status === 'authenticated') {
       const delayDebounceFn = setTimeout(() => {
         fetchCompanies();
