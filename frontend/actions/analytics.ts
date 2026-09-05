@@ -86,6 +86,7 @@ export async function getDashboardStats(filters: { startDate?: string, endDate?:
       return {
         id: m.id,
         name: m.name,
+        assigned: comps.length,
         emailsSent: mEmails,
         replies: mReplies,
         confirmed: mConfirmed,
