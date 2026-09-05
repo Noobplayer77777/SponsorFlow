@@ -127,6 +127,12 @@ export async function sendEmail(companyId: string, subject: string, body: string
     }
   });
 
+  await prisma.assignment.upsert({
+    where: { companyId },
+    update: { userId },
+    create: { companyId, userId }
+  });
+
   await prisma.company.update({
     where: { id: companyId },
     data: { 

@@ -50,6 +50,20 @@ export async function lockCompany(companyId: string) {
   if (result.count === 0) {
     throw new Error('This company is currently locked by another member who is drafting an email.');
   }
+
+  // If the company is completely unassigned, instantly assign it to the member who acquired the lock!
+  if (company.status === 'NOT_ASSIGNED') {
+    await prisma.assignment.upsert({
+      where: { companyId },
+      update: { userId },
+      create: { companyId, userId }
+    });
+    await prisma.company.update({
+      where: { id: companyId },
+      data: { status: 'ASSIGNED' }
+    });
+  }
+
   return { success: true };
 }
 
