@@ -20,7 +20,8 @@ const STATUS_BADGES: Record<string, string> = {
 };
 
 import { getCompanyById, getTemplates, updateCompanySummary } from '../../../actions/companies';
-import { lockCompany, unlockCompany, addNote, updateCompanyStatus, scheduleFollowUp } from '../../../actions/mutations';
+import { lockCompany, unlockCompany, addNote, updateCompanyStatus, scheduleFollowUp, assignCompanyToMember } from '../../../actions/mutations';
+import { getUsers } from '../../../actions/users';
 import { generatePersonalizedIntro, generateCompanySummary, suggestReply, draftFullEmail, getDraftEmailPrompt } from '../../../actions/ai';
 import { GoogleGenerativeAI } from '@google/generative-ai';
 import { sendEmail, sendEmailWithAttachments } from '../../../actions/gmail';
@@ -33,6 +34,7 @@ export default function CompanyProfilePage() {
   const user = session?.user as any;
   const [loading, setLoading] = useState(true);
   const [templates, setTemplates] = useState<any[]>([]);
+  const [users, setUsers] = useState<any[]>([]);
   
   const [company, setCompany] = useState<any>({});
   
@@ -60,13 +62,24 @@ export default function CompanyProfilePage() {
     if (status === 'authenticated') {
       const fetchCompanyAndTemplates = async () => {
         try {
-          const [companyData, templatesData] = await Promise.all([
+          const promises: any[] = [
             getCompanyById(params.id as string),
             getTemplates()
-          ]);
-          setCompany(companyData);
-          setSummaryText(companyData?.aiSummary || '');
-          setTemplates(templatesData || []);
+          ];
+          
+          if (user?.role === 'ADMIN') {
+            promises.push(getUsers());
+          }
+          
+          const results = await Promise.all(promises);
+          
+          setCompany(results[0]);
+          setSummaryText(results[0]?.aiSummary || '');
+          setTemplates(results[1] || []);
+          
+          if (user?.role === 'ADMIN' && results[2]) {
+            setUsers(results[2]);
+          }
         } catch (error: any) {
           alert('Failed to load data: ' + error.message);
           console.error("Full error:", error);
@@ -98,6 +111,17 @@ export default function CompanyProfilePage() {
         subject: replacePlaceholders(template.subject),
         body: replacePlaceholders(template.body)
       });
+    }
+  };
+
+  const handleAssignCompany = async (targetUserId: string | null) => {
+    try {
+      await assignCompanyToMember(params.id as string, targetUserId);
+      const companyData = await getCompanyById(params.id as string);
+      setCompany(companyData);
+      alert('Company assignment updated successfully!');
+    } catch (error: any) {
+      alert(error.message || 'Failed to assign company');
     }
   };
 
@@ -461,7 +485,22 @@ export default function CompanyProfilePage() {
             <dl className="text-sm space-y-4">
               <div className="flex items-center justify-between">
                 <dt className="text-gray-500">Assigned Member</dt>
-                <dd className="font-medium text-gray-900">{company?.assignment?.user?.name || 'Unassigned'}</dd>
+                <dd className="font-medium text-gray-900">
+                  {user?.role === 'ADMIN' ? (
+                    <select 
+                      value={company?.assignment?.userId || ''} 
+                      onChange={(e) => handleAssignCompany(e.target.value || null)}
+                      className="block rounded-md border-0 py-1 pl-3 pr-8 text-gray-900 ring-1 ring-inset ring-gray-300 focus:ring-2 focus:ring-indigo-600 sm:text-sm sm:leading-6"
+                    >
+                      <option value="">Unassigned</option>
+                      {users.map(u => (
+                        <option key={u.id} value={u.id}>{u.name}</option>
+                      ))}
+                    </select>
+                  ) : (
+                    company?.assignment?.user?.name || 'Unassigned'
+                  )}
+                </dd>
               </div>
               <div className="flex items-center justify-between">
                 <dt className="text-gray-500">Status</dt>

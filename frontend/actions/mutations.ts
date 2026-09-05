@@ -4,6 +4,38 @@ import { prisma } from '../lib/prisma';
 import { getServerSession } from 'next-auth';
 import { authOptions } from '../app/api/auth/[...nextauth]/route';
 
+// --- ADMIN ASSIGNMENT ---
+
+export async function assignCompanyToMember(companyId: string, targetUserId: string | null) {
+  const session = await getServerSession(authOptions);
+  if (!session?.user || (session.user as any).role !== 'ADMIN') throw new Error('Unauthorized');
+  
+  const company = await prisma.company.findUnique({ where: { id: companyId } });
+  if (!company) throw new Error('Company not found');
+
+  // If removing assignment
+  if (!targetUserId) {
+    await prisma.assignment.deleteMany({ where: { companyId } });
+    if (company.status === 'ASSIGNED') {
+      await prisma.company.update({ where: { id: companyId }, data: { status: 'NOT_ASSIGNED', lockedById: null, lockedAt: null } });
+    }
+    return { success: true };
+  }
+
+  // If assigning to a specific member
+  await prisma.assignment.upsert({
+    where: { companyId },
+    update: { userId: targetUserId },
+    create: { companyId, userId: targetUserId }
+  });
+
+  if (company.status === 'NOT_ASSIGNED') {
+    await prisma.company.update({ where: { id: companyId }, data: { status: 'ASSIGNED', lockedById: null, lockedAt: null } });
+  }
+
+  return { success: true };
+}
+
 // --- LOCKING MUTATIONS ---
 
 export async function lockCompany(companyId: string) {
